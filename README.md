@@ -1,83 +1,67 @@
-# 🏠 Smart Home — ESP32 Home Automation App
+# Smart Home
 
-A Tesla-inspired smart home control app built with React Native, Expo, and Three.js. Controls an ESP32-based home automation system with PIR motion detection, temperature/humidity monitoring, and relay-controlled devices.
+React Native app that controls an ESP32-based home automation system. Renders a 3D isometric house using Three.js where rooms light up in real time as devices toggle on and off. Talks to the ESP32 over a local REST API.
 
-## Features
+Currently runs in simulation mode — the app works standalone without hardware, simulating PIR motion events and sensor readings so the UI and 3D scene can be developed and tested independently.
 
-- **3D Isometric House** — Real-time Three.js visualization with room lighting that responds to device state
-- **Auto / Manual Mode** — PIR sensor controls devices automatically, or take manual control from the app
-- **Live Sensors** — Temperature and humidity readings from DHT11 sensor
-- **Motion Detection** — PIR motion status with visual indicators
-- **Device Control** — Toggle living room LED, bedroom fan, and porch light
-- **Activity Log** — Real-time event stream with timestamps
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Framework | Expo SDK 57 |
-| Language | TypeScript |
-| 3D Engine | Three.js + expo-gl + expo-three |
-| State | Zustand |
-| Animations | React Native Reanimated |
-| Haptics | expo-haptics |
-
-## Getting Started
+## Running it
 
 ```bash
-# Install dependencies
 npm install
-
-# Start the dev server
-npx expo start
-
-# Run on Android
 npx expo start --android
 ```
 
-## Project Structure
+Opens in Expo Go on a physical Android device or emulator. No ESP32 needed — simulation mode is on by default.
+
+## How it works
+
+The app has two modes:
+
+**Auto mode** — the ESP32's PIR motion sensor controls everything. Motion detected → porch light and living room LED turn on. No motion for5 seconds → they turn off. The app displays status but doesn't accept manual input.
+
+**Manual mode** — the PIR sensor is ignored. You toggle devices directly from the app. Tapping a room in the list flips its relay on the ESP32, and the3D house updates to match.
+
+When connected to a real ESP32, the app polls `/status` and `/sensors` every4 seconds. In simulation mode, a hook generates fake motion events on the same timing.
+
+## Project structure
 
 ```
 src/
-├── api/
-│   └── esp32.ts          # REST API client for ESP32
+├── api/esp32.ts           REST client — GET /sensors, GET /status, POST /relay, POST /mode
 ├── components/
-│   ├── ActivityLog.tsx    # Event log feed
-│   ├── DeviceControls.tsx # Room toggle switches
-│   ├── House3D.tsx        # Three.js house scene
-│   ├── SensorCards.tsx    # Temperature + humidity display
-│   └── TopBar.tsx         # Mode toggle + connection status
+│   ├── House3D.tsx        Three.js scene — orthographic isometric camera, room lights, glow planes
+│   ├── TopBar.tsx         Auto/Manual toggle, connection dot, PIR badge
+│   ├── SensorCards.tsx    Temperature, humidity, motion indicator
+│   ├── DeviceControls.tsx Room switches (disabled in auto mode)
+│   └── ActivityLog.tsx    Timestamped event feed
 ├── hooks/
-│   └── useSimulation.ts   # Demo mode (no ESP32 needed)
+│   └── useSimulation.ts   Fake PIR events + sensor fluctuation for demo
 ├── store/
-│   └── useHomeStore.ts    # Zustand global state
-└── theme.ts               # Colors, spacing, typography
+│   └── useHomeStore.ts    Zustand — rooms, mode, sensors, activity log
+└── theme.ts               Colors, spacing, type scale
 ```
 
-## ESP32 API Endpoints
+## ESP32 endpoints the app expects
 
-| Method | Endpoint | Purpose |
+| Method | Path | Returns / Accepts |
 |---|---|---|
-| GET | `/status` | Motion, motor, LED state |
-| GET | `/sensors` | Temperature + humidity |
-| POST | `/relay/{channel}` | Toggle device on/off |
-| POST | `/mode` | Switch auto/manual mode |
+| GET | `/sensors` | `{ temperature, humidity }` |
+| GET | `/status` | `{ motion, motor, led, mode }` |
+| POST | `/relay/{channel}` | `{ "state": "on" \| "off" }` — channel is `motor`, `porch`, or `living` |
+| POST | `/mode` | `{ "mode": "auto" \| "manual" }` |
 
-## Hardware
+The ESP32 firmware for these endpoints isn't written yet. The app hits them when an IP is configured; until then, simulation covers the UI.
 
-- ESP32 dev board
-- DHT11 temperature/humidity sensor
-- PIR motion sensor
-- Relay module (active-LOW)
-- 5V DC motor
-- LED strips (living room, porch)
+## Hardware (breadboard-validated)
 
-## Build Phases
+ESP32, DHT11, PIR motion sensor, active-LOW relay module,5V DC motor with flyback diode, separate motor power supply with shared ground,10kΩ pull-up on relay IN pin. Full details and lessons learned are in `home_automation_full_scope.md`.
 
-- [x] Breadboard prototyping
-- [x] Firmware with debounce/safety logic
-- [x] Mobile app scaffold with 3D house
-- [ ] Wi-Fi + REST API on ESP32
-- [ ] Connect app to real ESP32
-- [ ] Move circuit into cardboard house
-- [ ] Remote access (optional)
+## What's done
+
+- [x] Breadboard prototyping — all hardware validated
+- [x] Firmware with debounce, separate power supplies, safe boot defaults
+- [x] App scaffold — Three.js house, UI, state management, simulation mode
+- [ ] ESP32 Wi-Fi + REST endpoints
+- [ ] App connected to real ESP32
+- [ ] Cardboard house build with LED strips and wiring
+- [ ] Remote access (maybe later, not needed for MVP)
