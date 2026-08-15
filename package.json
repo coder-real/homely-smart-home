@@ -1,0 +1,33 @@
+{
+  "name": "smart-home",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "dependencies": {
+    "@types/three": "^0.185.4",
+    "expo": "~57.0.13",
+    "expo-gl": "~57.0.2",
+    "expo-haptics": "~57.0.1",
+    "expo-linear-gradient": "^57.0.1",
+    "expo-status-bar": "~57.0.1",
+    "expo-three": "^8.0.0",
+    "react": "19.2.3",
+    "react-native": "0.86.2",
+    "react-native-gesture-handler": "~2.32.0",
+    "react-native-reanimated": "4.5.1",
+    "react-native-safe-area-context": "~5.7.0",
+    "react-native-screens": "~4.26.0",
+    "three": "^0.166.1",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.2",
+    "typescript": "~6.0.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
+  },
+  "private": true
+}
