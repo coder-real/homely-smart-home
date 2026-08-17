@@ -14,7 +14,7 @@ import { Feather } from '@expo/vector-icons';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { useNavigation } from '@react-navigation/native';
-import { colors, fontSize, spacing, radius, fontWeight, fontFamily } from '../theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore, RoomId } from '../store/useHomeStore';
 import TopBar from '../components/TopBar';
 import * as Haptics from 'expo-haptics';
@@ -22,27 +22,28 @@ import * as Haptics from 'expo-haptics';
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const ROOM_BG: Record<RoomId, any> = {
-  porch: require('../../assets/porch bg image.jpg'),
   living: require('../../assets/living room bg image.jpg'),
   bedroom: require('../../assets/bedroom bg image.jpg'),
+  porch: require('../../assets/porch bg image.jpg'),
 };
 
 const ROOM_ICON: Record<RoomId, keyof typeof Feather.glyphMap> = {
-  porch: 'sun',
   living: 'tv',
   bedroom: 'moon',
+  porch: 'sun',
 };
 
 const ROOM_COLOR: Record<RoomId, string> = {
-  porch: colors.roomPorch,
   living: colors.roomLiving,
   bedroom: colors.roomBedroom,
+  porch: colors.roomPorch,
 };
 
 // ── Sensor Widget ────────────────────────────────────────────────
 function SensorWidget() {
   const temperature = useHomeStore((s) => s.temperature);
   const humidity = useHomeStore((s) => s.humidity);
+  const motionDetected = useHomeStore((s) => s.motionDetected);
   const lastUpdated = useHomeStore((s) => s.lastUpdated);
 
   const secondsAgo = Math.floor((Date.now() - lastUpdated) / 1000);
@@ -55,19 +56,33 @@ function SensorWidget() {
     <View style={sw.card}>
       <View style={sw.topRow}>
         <View>
+          <View style={sw.headerTag}>
+            <Feather name="cpu" size={11} color={colors.primaryLight} />
+            <Text style={sw.headerTagText}>DHT11 BEDROOM CLIMATE</Text>
+          </View>
           <Text style={sw.tempValue}>
             {temperature.toFixed(1)}
             <Text style={sw.tempUnit}>°C</Text>
           </Text>
           <View style={sw.humidRow}>
-            <Feather name="droplet" size={14} color={colors.primaryLight} />
-            <Text style={sw.humidValue}>{humidity}%</Text>
+            <Feather name="droplet" size={13} color={colors.primaryLight} />
+            <Text style={sw.humidValue}>{humidity}% humidity</Text>
           </View>
         </View>
-        <View style={sw.iconBadge}>
-          <Feather name="thermometer" size={20} color={colors.success} />
+
+        <View style={sw.rightPills}>
+          <View style={[sw.motionPill, motionDetected ? sw.motionPillActive : sw.motionPillIdle]}>
+            <View style={[sw.motionDot, motionDetected && sw.motionDotActive]} />
+            <Text style={[sw.motionText, motionDetected && sw.motionTextActive]}>
+              {motionDetected ? 'PIR MOTION' : 'PIR IDLE'}
+            </Text>
+          </View>
+          <View style={sw.iconBadge}>
+            <Feather name="thermometer" size={18} color={colors.success} />
+          </View>
         </View>
       </View>
+
       <View style={sw.bottomRow}>
         <Feather name="refresh-cw" size={11} color={colors.textMuted} />
         <Text style={sw.updated}>UPDATED {updatedText.toUpperCase()}</Text>
@@ -88,37 +103,85 @@ const sw = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
+  },
+  headerTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 4,
+  },
+  headerTagText: {
+    color: colors.textMuted,
+    fontFamily: fontFamily.bold,
+    fontSize: 10,
+    letterSpacing: 1,
   },
   tempValue: {
     color: colors.text,
     fontFamily: fontFamily.bold,
-    fontSize: 48,
-    fontWeight: fontWeight.bold,
-    letterSpacing: -2,
-    lineHeight: 52,
+    fontSize: 44,
+    letterSpacing: -1.5,
+    lineHeight: 48,
   },
   tempUnit: {
     fontFamily: fontFamily.regular,
     fontSize: fontSize.xxl,
-    fontWeight: fontWeight.regular,
     letterSpacing: 0,
   },
   humidRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: 6,
+    marginTop: 4,
   },
   humidValue: {
     color: colors.textSecondary,
     fontFamily: fontFamily.medium,
-    fontSize: fontSize.base,
-    fontWeight: fontWeight.medium,
+    fontSize: fontSize.sm,
+  },
+  rightPills: {
+    alignItems: 'flex-end',
+    gap: spacing.sm,
+  },
+  motionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+  },
+  motionPillActive: {
+    backgroundColor: 'rgba(16,185,129,0.15)',
+    borderColor: 'rgba(16,185,129,0.4)',
+  },
+  motionPillIdle: {
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderColor: colors.border,
+  },
+  motionDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.textMuted,
+  },
+  motionDotActive: {
+    backgroundColor: colors.success,
+  },
+  motionText: {
+    color: colors.textMuted,
+    fontFamily: fontFamily.bold,
+    fontSize: 9,
+    letterSpacing: 0.8,
+  },
+  motionTextActive: {
+    color: colors.success,
   },
   iconBadge: {
-    width: 44,
-    height: 44,
+    width: 38,
+    height: 38,
     borderRadius: radius.md,
     backgroundColor: 'rgba(16,185,129,0.12)',
     borderWidth: 1,
@@ -152,13 +215,13 @@ function RoomCard({
   const toggleRoom = useHomeStore((s) => s.toggleRoom);
   const mode = useHomeStore((s) => s.mode);
   const accentColor = ROOM_COLOR[roomId];
-  const isOn = room.isOn;
+  const isOn = room.isOn || (roomId === 'bedroom' && !!room.fanOn);
   const iconName = ROOM_ICON[roomId];
 
   const handleToggle = (newVal: boolean) => {
-    if (mode === 'auto') return;
+    if (mode === 'auto' && room.mode === 'auto' && roomId === 'living') return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (newVal !== isOn) toggleRoom(roomId);
+    if (newVal !== room.isOn) toggleRoom(roomId);
   };
 
   return (
@@ -189,24 +252,27 @@ function RoomCard({
 
       {/* Bottom info */}
       <View style={rc.bottom}>
+        <View style={rc.relayTag}>
+          <Text style={rc.relayText}>RELAY {room.relayChannel}</Text>
+        </View>
         <Text style={rc.name}>{room.name}</Text>
         <Text style={rc.subtitle}>{room.subtitle}</Text>
 
         {/* ON / OFF pill toggle */}
         <View style={rc.toggle}>
           <TouchableOpacity
-            style={[rc.toggleBtn, !isOn && rc.toggleBtnActive]}
+            style={[rc.toggleBtn, !room.isOn && rc.toggleBtnActive]}
             onPress={() => handleToggle(false)}
             activeOpacity={0.75}
           >
-            <Text style={[rc.toggleText, !isOn && rc.toggleTextActive]}>Off</Text>
+            <Text style={[rc.toggleText, !room.isOn && rc.toggleTextActive]}>Off</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[rc.toggleBtn, isOn && rc.toggleBtnOn]}
+            style={[rc.toggleBtn, room.isOn && rc.toggleBtnOn]}
             onPress={() => handleToggle(true)}
             activeOpacity={0.75}
           >
-            <Text style={[rc.toggleText, isOn && rc.toggleTextOn]}>On</Text>
+            <Text style={[rc.toggleText, room.isOn && rc.toggleTextOn]}>On</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -257,17 +323,24 @@ const rc = StyleSheet.create({
   stateText: {
     fontFamily: fontFamily.bold,
     fontSize: 10,
-    fontWeight: fontWeight.bold,
     letterSpacing: 0.8,
   },
   stateTextOn: { color: '#000' },
   stateTextOff: { color: colors.textSecondary },
-  bottom: { gap: 4 },
+  bottom: { gap: 3 },
+  relayTag: {
+    alignSelf: 'flex-start',
+  },
+  relayText: {
+    color: colors.amber,
+    fontFamily: fontFamily.bold,
+    fontSize: 9,
+    letterSpacing: 1,
+  },
   name: {
     color: colors.text,
     fontFamily: fontFamily.bold,
     fontSize: fontSize.lg,
-    fontWeight: fontWeight.bold,
     textShadowColor: 'rgba(0,0,0,0.8)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
@@ -298,11 +371,10 @@ const rc = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
     letterSpacing: 0.3,
   },
   toggleTextActive: { color: colors.text },
-  toggleTextOn: { color: '#000', fontWeight: fontWeight.bold },
+  toggleTextOn: { color: '#000', fontFamily: fontFamily.bold },
 });
 
 // ── Recent Activity Strip ────────────────────────────────────────
@@ -352,7 +424,6 @@ const ra = StyleSheet.create({
     color: colors.text,
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
   },
   list: {
     backgroundColor: colors.bgCard,
@@ -415,15 +486,15 @@ export default function HomeScreen() {
         {/* Environments */}
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>Environments</Text>
-          {/* Porch — large top card */}
-          <RoomCard roomId="porch" large />
+          {/* Living Room — main motion demo room with 3 LEDs */}
+          <RoomCard roomId="living" large />
           {/* 2-col grid */}
           <View style={styles.grid}>
             <View style={styles.gridCol}>
-              <RoomCard roomId="living" />
+              <RoomCard roomId="bedroom" />
             </View>
             <View style={styles.gridCol}>
-              <RoomCard roomId="bedroom" />
+              <RoomCard roomId="porch" />
             </View>
           </View>
         </View>
@@ -446,7 +517,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xxl,
-    fontWeight: fontWeight.bold,
     letterSpacing: -0.5,
   },
   greetingDate: {
@@ -459,7 +529,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
     letterSpacing: 1.2,
     textTransform: 'uppercase',
   },

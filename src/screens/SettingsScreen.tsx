@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { colors, fontSize, spacing, radius, fontWeight, fontFamily } from '../theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore } from '../store/useHomeStore';
 import TopBar from '../components/TopBar';
 
@@ -48,7 +48,6 @@ const sc = StyleSheet.create({
     color: colors.primaryLight,
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
     letterSpacing: 0.5,
   },
 });
@@ -202,7 +201,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xxxl,
-    fontWeight: fontWeight.bold,
     letterSpacing: -0.5,
   },
   pageSubtitle: {
@@ -246,7 +244,6 @@ const styles = StyleSheet.create({
   statusText: {
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.semibold,
   },
   statusTextOn: { color: colors.success },
   statusTextOff: { color: colors.textMuted },
@@ -266,7 +263,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fontFamily.medium,
     fontSize: fontSize.base,
-    fontWeight: fontWeight.medium,
   },
   dropdownMenu: {
     backgroundColor: colors.bgCard,
@@ -290,7 +286,6 @@ const styles = StyleSheet.create({
   dropdownOptionTextActive: {
     color: colors.primaryLight,
     fontFamily: fontFamily.bold,
-    fontWeight: fontWeight.bold,
   },
 
   versionBadge: {
@@ -305,7 +300,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: fontFamily.medium,
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
     fontVariant: ['tabular-nums'],
   },
 
@@ -324,6 +318,5 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: fontFamily.medium,
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
   },
 });

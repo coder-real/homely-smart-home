@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, Switch } from 'react-native';
-import { colors, fontSize, spacing, radius, fontWeight } from '../theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore, RoomId } from '../store/useHomeStore';
 import * as Haptics from 'expo-haptics';
 
@@ -104,15 +104,15 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.textSecondary,
+    fontFamily: fontFamily.semibold,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },
   count: {
     color: colors.textMuted,
+    fontFamily: fontFamily.medium,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.medium,
   },
   list: {
     backgroundColor: colors.bgCard,
@@ -155,11 +155,12 @@ const styles = StyleSheet.create({
   },
   roomName: {
     color: colors.text,
+    fontFamily: fontFamily.medium,
     fontSize: fontSize.base,
-    fontWeight: fontWeight.medium,
   },
   roomSub: {
     color: colors.textMuted,
+    fontFamily: fontFamily.regular,
     fontSize: fontSize.xs,
   },
   rowRight: {
@@ -177,6 +178,7 @@ const styles = StyleSheet.create({
   },
   autoNoteText: {
     color: colors.textMuted,
+    fontFamily: fontFamily.regular,
     fontSize: fontSize.xs,
     fontStyle: 'italic',
   },

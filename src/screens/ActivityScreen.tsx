@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
-import { colors, fontSize, spacing, radius, fontWeight, fontFamily } from '../theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore, ActivityEntry } from '../store/useHomeStore';
 import TopBar from '../components/TopBar';
 
@@ -114,7 +114,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xxxl,
-    fontWeight: fontWeight.bold,
     letterSpacing: -0.5,
   },
   pageSubtitle: {
@@ -127,7 +126,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
     letterSpacing: 1.5,
     textTransform: 'uppercase',
   },
@@ -158,7 +156,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fontFamily.medium,
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
   },
   entrySub: {
     color: colors.textMuted,
@@ -169,7 +166,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fontFamily.regular,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.medium,
     fontVariant: ['tabular-nums'],
   },
   emptyState: { alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.xxxl },
@@ -177,7 +173,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.base,
-    fontWeight: fontWeight.semibold,
   },
   emptySubtext: {
     color: colors.textMuted,
@@ -200,7 +195,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.bold,
     letterSpacing: 1.5,
   },
 });

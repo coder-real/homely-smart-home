@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fontSize, spacing, radius, fontWeight } from '../theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore } from '../store/useHomeStore';
 
 export default function SensorCards() {
@@ -114,8 +114,8 @@ const styles = StyleSheet.create({
   },
   label: {
     color: colors.textSecondary,
+    fontFamily: fontFamily.medium,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.medium,
     textTransform: 'uppercase',
     letterSpacing: 0.8,
   },
@@ -126,14 +126,14 @@ const styles = StyleSheet.create({
   },
   value: {
     color: colors.text,
+    fontFamily: fontFamily.bold,
     fontSize: fontSize.xxl,
-    fontWeight: fontWeight.bold,
     letterSpacing: -1,
   },
   unit: {
     color: colors.textMuted,
+    fontFamily: fontFamily.medium,
     fontSize: fontSize.base,
-    fontWeight: fontWeight.medium,
     marginBottom: 3,
     marginLeft: 2,
   },
@@ -182,8 +182,8 @@ const styles = StyleSheet.create({
   },
   motionLabel: {
     color: colors.textSecondary,
+    fontFamily: fontFamily.medium,
     fontSize: fontSize.sm,
-    fontWeight: fontWeight.medium,
   },
   motionLabelActive: {
     color: colors.success,
@@ -196,8 +196,8 @@ const styles = StyleSheet.create({
   },
   motionBadgeText: {
     color: colors.success,
+    fontFamily: fontFamily.bold,
     fontSize: 9,
-    fontWeight: fontWeight.bold,
     letterSpacing: 1.2,
   },
 });

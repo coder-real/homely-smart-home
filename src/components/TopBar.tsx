@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { colors, fontSize, spacing, radius, fontWeight, fontFamily } from '../theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore } from '../store/useHomeStore';
 
 const logo = require('../../assets/icon.png');
@@ -83,7 +83,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fontFamily.bold,
     fontSize: fontSize.base,
-    fontWeight: fontWeight.bold,
     letterSpacing: 2,
   },
   statusPill: {
@@ -114,7 +113,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: fontFamily.medium,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.medium,
     letterSpacing: 0.5,
   },
 });

@@ -7,7 +7,7 @@ import HomeScreen from '../screens/HomeScreen';
 import RoomsScreen from '../screens/RoomsScreen';
 import ActivityScreen from '../screens/ActivityScreen';
 import SettingsScreen from '../screens/SettingsScreen';
-import { colors, fontSize, fontWeight, fontFamily, radius } from '../theme';
+import { colors, fontSize, fontFamily } from '../theme';
 
 export type BottomTabParamList = {
   Home: undefined;
@@ -37,7 +37,7 @@ export default function BottomTabs() {
         tabBarInactiveTintColor: colors.tabInactive,
         tabBarLabelStyle: styles.tabLabel,
         tabBarItemStyle: styles.tabItem,
-        tabBarIcon: ({ color, focused }) => {
+        tabBarIcon: ({ color }) => {
           const iconSize = 20;
           if (route.name === 'Home') return <Feather name="home" size={iconSize} color={color} />;
           if (route.name === 'Rooms') return <Feather name="grid" size={iconSize} color={color} />;
@@ -73,7 +73,6 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontFamily: fontFamily.medium,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.medium,
     letterSpacing: 0.3,
     marginTop: 3,
   },

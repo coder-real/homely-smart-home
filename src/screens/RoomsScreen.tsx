@@ -14,36 +14,36 @@ import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
-import { colors, fontSize, spacing, radius, fontWeight, fontFamily } from '../theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore, RoomId } from '../store/useHomeStore';
 import TopBar from '../components/TopBar';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 const ROOM_BG: Record<RoomId, any> = {
-  porch: require('../../assets/porch bg image.jpg'),
   living: require('../../assets/living room bg image.jpg'),
   bedroom: require('../../assets/bedroom bg image.jpg'),
+  porch: require('../../assets/porch bg image.jpg'),
 };
 
-const ROOM_ORDER: RoomId[] = ['porch', 'living', 'bedroom'];
+const ROOM_ORDER: RoomId[] = ['living', 'bedroom', 'porch'];
 
 const ROOM_ICON: Record<RoomId, keyof typeof Feather.glyphMap> = {
-  porch: 'sun',
   living: 'tv',
   bedroom: 'moon',
+  porch: 'sun',
 };
 
 const ROOM_COLOR: Record<RoomId, string> = {
-  porch: colors.roomPorch,
   living: colors.roomLiving,
   bedroom: colors.roomBedroom,
+  porch: colors.roomPorch,
 };
 
 function RoomCard({ roomId }: { roomId: RoomId }) {
   const navigation = useNavigation<Nav>();
   const room = useHomeStore((s) => s.rooms[roomId]);
-  const isOn = room.isOn;
+  const isOn = room.isOn || (roomId === 'bedroom' && !!room.fanOn);
   const accentColor = ROOM_COLOR[roomId];
   const iconName = ROOM_ICON[roomId];
 
@@ -68,19 +68,22 @@ function RoomCard({ roomId }: { roomId: RoomId }) {
         </View>
         <View style={[styles.stateBadge, isOn ? styles.stateBadgeOn : styles.stateBadgeOff]}>
           <Text style={[styles.stateText, isOn && styles.stateTextOn]}>
-            {isOn ? 'ON' : 'OFF'}
+            {isOn ? 'ACTIVE' : 'STANDBY'}
           </Text>
         </View>
       </View>
 
       {/* Bottom */}
       <View style={styles.cardBottom}>
+        <View style={styles.relayBadge}>
+          <Text style={styles.relayBadgeText}>RELAY {room.relayChannel}</Text>
+        </View>
         <Text style={styles.roomName}>{room.name}</Text>
         <Text style={styles.roomSubtitle}>{room.subtitle}</Text>
         <View style={styles.modeRow}>
           <Feather name={room.mode === 'auto' ? 'zap' : 'sliders'} size={12} color={accentColor} />
           <Text style={[styles.modeTag, { color: accentColor }]}>
-            {room.mode === 'auto' ? 'Auto mode' : 'Manual mode'}
+            {room.mode === 'auto' ? 'Auto sensor control' : 'Manual app control'}
           </Text>
         </View>
       </View>
@@ -99,8 +102,8 @@ export default function RoomsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.pageTitle}>Rooms</Text>
-          <Text style={styles.pageSubtitle}>Tap a room to manage its devices and environment.</Text>
+          <Text style={styles.pageTitle}>Zones & Hardware</Text>
+          <Text style={styles.pageSubtitle}>4-Channel Relay allocation & Star-Topology Sensor Zones.</Text>
         </View>
 
         <View style={styles.grid}>
@@ -125,7 +128,6 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xxxl,
-    fontWeight: fontWeight.bold,
     letterSpacing: -0.5,
   },
   pageSubtitle: {
@@ -136,7 +138,7 @@ const styles = StyleSheet.create({
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.md },
   gridItem: { width: '100%' },
   card: {
-    height: 200,
+    height: 210,
     borderRadius: radius.lg,
     overflow: 'hidden',
     borderWidth: 1.5,
@@ -163,18 +165,23 @@ const styles = StyleSheet.create({
   stateBadgeOff: { backgroundColor: 'rgba(0,0,0,0.6)', borderColor: colors.border },
   stateText: {
     fontFamily: fontFamily.bold,
-    fontSize: 10,
-    fontWeight: fontWeight.bold,
+    fontSize: 9,
     color: colors.textSecondary,
     letterSpacing: 0.8,
   },
   stateTextOn: { color: '#000' },
   cardBottom: { gap: 3 },
+  relayBadge: { alignSelf: 'flex-start' },
+  relayBadgeText: {
+    color: colors.amber,
+    fontFamily: fontFamily.bold,
+    fontSize: 9,
+    letterSpacing: 1,
+  },
   roomName: {
     color: colors.text,
     fontFamily: fontFamily.bold,
     fontSize: fontSize.xl,
-    fontWeight: fontWeight.bold,
     textShadowColor: 'rgba(0,0,0,0.8)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 4,
@@ -193,6 +200,5 @@ const styles = StyleSheet.create({
   modeTag: {
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
   },
 });

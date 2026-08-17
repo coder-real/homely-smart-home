@@ -9,10 +9,15 @@ export interface RoomState {
   name: string;
   subtitle: string;
   icon: string;
-  isOn: boolean;
+  isOn: boolean; // Main light/power
+  fanOn?: boolean; // For bedroom fan (Relay CH4)
+  fanSpeed?: 'Off' | 'Low' | 'Medium' | 'High';
+  targetTemp?: number; // Target temperature for DHT11 fan trigger
   mode: RoomMode;
   temperature?: number;
   humidity?: number;
+  relayChannel: string;
+  ledCount?: number;
 }
 
 export interface ActivityEntry {
@@ -33,11 +38,11 @@ interface HomeState {
   rooms: Record<RoomId, RoomState>;
 
   // Sensors
-  temperature: number;
-  humidity: number;
+  temperature: number; // DHT11 Bedroom ambient
+  humidity: number;    // DHT11 Bedroom humidity
   lastUpdated: number;
 
-  // Motion
+  // Motion (PIR - Living Room Entrance)
   motionDetected: boolean;
   lastMotion: number | null;
 
@@ -53,6 +58,8 @@ interface HomeState {
   setDefaultMode: (mode: Mode) => void;
   toggleRoom: (roomId: RoomId) => void;
   setRoomState: (roomId: RoomId, isOn: boolean) => void;
+  setBedroomFan: (fanOn: boolean, fanSpeed?: 'Off' | 'Low' | 'Medium' | 'High') => void;
+  setTargetTemp: (temp: number) => void;
   setRoomMode: (roomId: RoomId, mode: RoomMode) => void;
   setSensors: (temp: number, humidity: number) => void;
   setMotionDetected: (detected: boolean) => void;
@@ -71,37 +78,42 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     living: {
       id: 'living',
       name: 'Living Room',
-      subtitle: 'Auto follows motion sensor',
-      icon: '💡',
+      subtitle: 'PIR Motion • 3 LEDs Ceiling Wash',
+      icon: 'tv',
       isOn: false,
       mode: 'auto',
-      temperature: 22,
-      humidity: 60,
+      relayChannel: 'CH2',
+      ledCount: 3,
     },
     bedroom: {
       id: 'bedroom',
       name: 'Bedroom',
-      subtitle: 'Master Suite',
-      icon: '🌀',
+      subtitle: 'Master Suite • 1 LED + Fan',
+      icon: 'moon',
       isOn: false,
-      mode: 'manual',
+      fanOn: false,
+      fanSpeed: 'Off',
+      targetTemp: 24.0,
+      mode: 'auto',
       temperature: 22.4,
-      humidity: 55,
+      humidity: 58,
+      relayChannel: 'CH3 / CH4',
+      ledCount: 1,
     },
     porch: {
       id: 'porch',
       name: 'Porch',
-      subtitle: 'Manual only',
-      icon: '🔆',
+      subtitle: 'Manual Only • 1 LED Sconce',
+      icon: 'sun',
       isOn: false,
       mode: 'manual',
-      temperature: 28,
-      humidity: 71,
+      relayChannel: 'CH1',
+      ledCount: 1,
     },
   },
 
-  temperature: 30.6,
-  humidity: 71,
+  temperature: 24.2,
+  humidity: 62,
   lastUpdated: Date.now(),
   motionDetected: false,
   lastMotion: null,
@@ -110,35 +122,35 @@ export const useHomeStore = create<HomeState>((set, get) => ({
   activityLog: [
     {
       id: 'seed-1',
-      message: 'Living Room turned on',
-      subtitle: 'Motion detected',
-      color: '#34D399',
-      timestamp: Date.now() - 1000 * 60 * 3,
+      message: 'Living Room lights turned ON',
+      subtitle: 'PIR motion detected at entrance (CH2)',
+      color: '#10B981',
+      timestamp: Date.now() - 1000 * 60 * 2,
       roomId: 'living',
     },
     {
       id: 'seed-2',
-      message: 'Porch light turned off',
-      subtitle: 'Manual override',
-      color: '#FBBF24',
-      timestamp: Date.now() - 1000 * 60 * 18,
-      roomId: 'porch',
+      message: 'Bedroom Fan set to Low',
+      subtitle: 'DHT11 Temp reached 24.2°C (CH4)',
+      color: '#38BDF8',
+      timestamp: Date.now() - 1000 * 60 * 15,
+      roomId: 'bedroom',
     },
     {
       id: 'seed-3',
-      message: 'Bedroom temp set to 22°',
-      subtitle: 'Automated schedule',
-      color: '#A78BFA',
-      timestamp: Date.now() - 1000 * 60 * 60 * 5,
-      roomId: 'bedroom',
+      message: 'Porch light turned OFF',
+      subtitle: 'Manual override (CH1)',
+      color: '#F59E0B',
+      timestamp: Date.now() - 1000 * 60 * 45,
+      roomId: 'porch',
     },
   ],
 
   setMode: (mode) => {
     set({ mode });
     get().addLogEntry(
-      mode === 'auto' ? 'Switched to Auto (PIR control)' : 'Switched to Manual (app control)',
-      mode === 'auto' ? 'System' : 'User action',
+      mode === 'auto' ? 'System switched to Auto' : 'System switched to Manual',
+      mode === 'auto' ? 'PIR controls Living, DHT11 controls Fan' : 'Direct app override',
       mode === 'auto' ? '#3B82F6' : '#F59E0B'
     );
   },
@@ -147,7 +159,6 @@ export const useHomeStore = create<HomeState>((set, get) => ({
 
   toggleRoom: (roomId) => {
     const state = get();
-    if (state.mode === 'auto') return;
     const room = state.rooms[roomId];
     const newIsOn = !room.isOn;
     set({
@@ -157,9 +168,9 @@ export const useHomeStore = create<HomeState>((set, get) => ({
       },
     });
     get().addLogEntry(
-      `${room.name} turned ${newIsOn ? 'on' : 'off'}`,
-      'Manual override',
-      newIsOn ? '#22C55E' : 'rgba(255,255,255,0.4)',
+      `${room.name} light ${newIsOn ? 'ON' : 'OFF'}`,
+      `Relay ${room.relayChannel.split(' ')[0]} • Manual override`,
+      newIsOn ? '#10B981' : 'rgba(255,255,255,0.4)',
       roomId
     );
   },
@@ -171,6 +182,39 @@ export const useHomeStore = create<HomeState>((set, get) => ({
       rooms: {
         ...state.rooms,
         [roomId]: { ...room, isOn },
+      },
+    });
+  },
+
+  setBedroomFan: (fanOn, fanSpeed) => {
+    const state = get();
+    const bedroom = state.rooms.bedroom;
+    const speed = fanSpeed ?? (fanOn ? 'Low' : 'Off');
+    set({
+      rooms: {
+        ...state.rooms,
+        bedroom: {
+          ...bedroom,
+          fanOn,
+          fanSpeed: speed,
+        },
+      },
+    });
+    get().addLogEntry(
+      `Bedroom Fan ${fanOn ? 'turned ON' : 'turned OFF'}`,
+      fanOn ? `Relay CH4 • Speed ${speed}` : 'Relay CH4 • Stopped',
+      fanOn ? '#38BDF8' : 'rgba(255,255,255,0.4)',
+      'bedroom'
+    );
+  },
+
+  setTargetTemp: (targetTemp) => {
+    const state = get();
+    const bedroom = state.rooms.bedroom;
+    set({
+      rooms: {
+        ...state.rooms,
+        bedroom: { ...bedroom, targetTemp },
       },
     });
   },
@@ -187,7 +231,34 @@ export const useHomeStore = create<HomeState>((set, get) => ({
   },
 
   setSensors: (temperature, humidity) =>
-    set({ temperature, humidity, lastUpdated: Date.now() }),
+    set((state) => {
+      const isBedroomAuto = state.mode === 'auto' || state.rooms.bedroom.mode === 'auto';
+      const target = state.rooms.bedroom.targetTemp ?? 24.0;
+      const shouldFanRun = temperature >= target;
+      
+      let updatedBedroom = state.rooms.bedroom;
+      if (isBedroomAuto && shouldFanRun !== updatedBedroom.fanOn) {
+        updatedBedroom = {
+          ...updatedBedroom,
+          fanOn: shouldFanRun,
+          fanSpeed: shouldFanRun ? 'Low' : 'Off',
+        };
+      }
+
+      return {
+        temperature,
+        humidity,
+        lastUpdated: Date.now(),
+        rooms: {
+          ...state.rooms,
+          bedroom: {
+            ...updatedBedroom,
+            temperature,
+            humidity,
+          },
+        },
+      };
+    }),
 
   setMotionDetected: (motionDetected) =>
     set({ motionDetected, lastMotion: motionDetected ? Date.now() : get().lastMotion }),

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { colors, fontSize, spacing, radius, fontWeight, fontFamily } from '../theme';
+import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore, ActivityEntry } from '../store/useHomeStore';
 
 function formatTime(timestamp: number): string {
@@ -59,7 +59,6 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.semibold,
     textTransform: 'uppercase',
     letterSpacing: 1.2,
   },
@@ -67,7 +66,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fontFamily.medium,
     fontSize: fontSize.xs,
-    fontWeight: fontWeight.medium,
   },
   card: {
     backgroundColor: colors.bgCard,
@@ -105,7 +103,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontFamily: fontFamily.medium,
     fontSize: 10,
-    fontWeight: fontWeight.medium,
     fontVariant: ['tabular-nums'],
     flexShrink: 0,
   },
