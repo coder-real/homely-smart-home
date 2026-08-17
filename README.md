@@ -1,4 +1,4 @@
-# Smart Home
+# Homely Smart Home
 
 React Native app that controls an ESP32-based home automation system. Renders a 3D isometric house using Three.js where rooms light up in real time as devices toggle on and off. Talks to the ESP32 over a local REST API.
 
