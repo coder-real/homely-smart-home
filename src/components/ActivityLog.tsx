@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, FlatList } from 'react-native';
-import { colors, fontSize, spacing, radius, fontWeight } from '../theme';
+import { View, Text, StyleSheet } from 'react-native';
+import { colors, fontSize, spacing, radius, fontWeight, fontFamily } from '../theme';
 import { useHomeStore, ActivityEntry } from '../store/useHomeStore';
 
 function formatTime(timestamp: number): string {
@@ -8,19 +8,17 @@ function formatTime(timestamp: number): string {
   if (diff < 1000) return 'now';
   if (diff < 60_000) return `${Math.floor(diff / 1000)}s ago`;
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
 function LogItem({ item }: { item: ActivityEntry }) {
   return (
     <View style={styles.item}>
       <View style={[styles.dot, { backgroundColor: item.color }]} />
-      <Text style={styles.message} numberOfLines={1}>
-        {item.message}
-      </Text>
+      <View style={styles.textCol}>
+        <Text style={styles.message} numberOfLines={1}>{item.message}</Text>
+        {item.subtitle ? <Text style={styles.subtitle} numberOfLines={1}>{item.subtitle}</Text> : null}
+      </View>
       <Text style={styles.time}>{formatTime(item.timestamp)}</Text>
     </View>
   );
@@ -39,12 +37,11 @@ export default function ActivityLog() {
         {activityLog.length === 0 ? (
           <Text style={styles.empty}>No activity yet</Text>
         ) : (
-          <FlatList
-            data={activityLog.slice(0, 10)}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <LogItem item={item} />}
-            scrollEnabled={false}
-          />
+          <View>
+            {activityLog.slice(0, 10).map((item) => (
+              <LogItem key={item.id} item={item} />
+            ))}
+          </View>
         )}
       </View>
     </View>
@@ -52,9 +49,7 @@ export default function ActivityLog() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    gap: spacing.md,
-  },
+  container: { gap: spacing.md },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -62,6 +57,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     color: colors.textSecondary,
+    fontFamily: fontFamily.semibold,
     fontSize: fontSize.xs,
     fontWeight: fontWeight.semibold,
     textTransform: 'uppercase',
@@ -69,6 +65,7 @@ const styles = StyleSheet.create({
   },
   count: {
     color: colors.textMuted,
+    fontFamily: fontFamily.medium,
     fontSize: fontSize.xs,
     fontWeight: fontWeight.medium,
   },
@@ -81,6 +78,7 @@ const styles = StyleSheet.create({
   },
   empty: {
     color: colors.textMuted,
+    fontFamily: fontFamily.regular,
     fontSize: fontSize.sm,
     textAlign: 'center',
     paddingVertical: spacing.xl,
@@ -91,19 +89,21 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     paddingVertical: 7,
   },
-  dot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-    flexShrink: 0,
-  },
+  dot: { width: 6, height: 6, borderRadius: 3, flexShrink: 0 },
+  textCol: { flex: 1, gap: 1 },
   message: {
-    flex: 1,
     color: colors.textSecondary,
+    fontFamily: fontFamily.medium,
     fontSize: fontSize.sm,
+  },
+  subtitle: {
+    color: colors.textMuted,
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.xs,
   },
   time: {
     color: colors.textMuted,
+    fontFamily: fontFamily.medium,
     fontSize: 10,
     fontWeight: fontWeight.medium,
     fontVariant: ['tabular-nums'],

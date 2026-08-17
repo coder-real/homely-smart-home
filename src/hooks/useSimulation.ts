@@ -36,7 +36,7 @@ export function useSimulation() {
       state.setMotionDetected(true);
       state.setRoomState('porch', true);
       state.setRoomState('living', true);
-      state.addLogEntry('PIR: Motion detected → Porch + Living ON', '#22C55E');
+      state.addLogEntry('PIR: Motion detected → Porch + Living ON', 'Auto trigger', '#22C55E');
 
       // Clear previous timeout
       if (motionTimeoutRef.current) {
@@ -49,7 +49,7 @@ export function useSimulation() {
         s.setMotionDetected(false);
         s.setRoomState('porch', false);
         s.setRoomState('living', false);
-        s.addLogEntry('PIR: No motion for 5s → Porch + Living OFF', 'rgba(255,255,255,0.4)');
+        s.addLogEntry('PIR: No motion for 5s → Porch + Living OFF', 'No motion timeout', 'rgba(255,255,255,0.4)');
       }, 5000);
     }, 12000);
 
@@ -61,14 +61,14 @@ export function useSimulation() {
       state.setMotionDetected(true);
       state.setRoomState('porch', true);
       state.setRoomState('living', true);
-      state.addLogEntry('PIR: Motion detected → Porch + Living ON', '#22C55E');
+      state.addLogEntry('PIR: Motion detected → Porch + Living ON', 'Auto trigger', '#22C55E');
 
       motionTimeoutRef.current = setTimeout(() => {
         const s = useHomeStore.getState();
         s.setMotionDetected(false);
         s.setRoomState('porch', false);
         s.setRoomState('living', false);
-        s.addLogEntry('PIR: No motion for 5s → Porch + Living OFF', 'rgba(255,255,255,0.4)');
+        s.addLogEntry('PIR: No motion for 5s → Porch + Living OFF', 'No motion timeout', 'rgba(255,255,255,0.4)');
       }, 5000);
     }, 3000);
 
