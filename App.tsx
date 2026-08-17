@@ -1,77 +1,76 @@
 import React from 'react';
-import {
-  View,
-  ScrollView,
-  StyleSheet,
-  StatusBar,
-  Text,
-} from 'react-native';
+import { View, ScrollView, StyleSheet, StatusBar, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing, fontSize } from './src/theme';
+import { colors, spacing, fontSize, fontWeight, radius } from './src/theme';
 import TopBar from './src/components/TopBar';
-import House3D from './src/components/House3D';
 import SensorCards from './src/components/SensorCards';
 import DeviceControls from './src/components/DeviceControls';
 import ActivityLog from './src/components/ActivityLog';
 import { useSimulation } from './src/hooks/useSimulation';
 import { useHomeStore } from './src/store/useHomeStore';
 
-function StatusBarBottom() {
+function QuickStatus() {
   const motionDetected = useHomeStore((s) => s.motionDetected);
   const rooms = useHomeStore((s) => s.rooms);
-  const anyOn = Object.values(rooms).some((r) => r.isOn);
+  const mode = useHomeStore((s) => s.mode);
+  const activeCount = Object.values(rooms).filter((r) => r.isOn).length;
 
   return (
-    <View style={styles.statusBarBottom}>
-      <StatusItem label="Wi-Fi" active />
-      <StatusItem label={motionDetected ? 'Motion' : 'No Motion'} active={motionDetected} />
-      <StatusItem label={anyOn ? 'Devices On' : 'All Off'} active={anyOn} />
+    <View style={styles.quickStatus}>
+      <View style={styles.statusPill}>
+        <View style={[styles.statusDot, { backgroundColor: mode === 'auto' ? colors.primary : colors.warning }]} />
+        <Text style={styles.statusPillText}>
+          {mode === 'auto' ? 'Auto' : 'Manual'}
+        </Text>
+      </View>
+      <View style={styles.statusPill}>
+        <View style={[styles.statusDot, { backgroundColor: motionDetected ? colors.success : 'rgba(255,255,255,0.12)' }]} />
+        <Text style={styles.statusPillText}>
+          {motionDetected ? 'Motion' : 'Idle'}
+        </Text>
+      </View>
+      <View style={styles.statusPill}>
+        <View style={[styles.statusDot, { backgroundColor: activeCount > 0 ? colors.accent : 'rgba(255,255,255,0.12)' }]} />
+        <Text style={styles.statusPillText}>
+          {activeCount} {activeCount === 1 ? 'device' : 'devices'}
+        </Text>
+      </View>
     </View>
   );
 }
 
-function StatusItem({ label, active }: { label: string; active: boolean }) {
+function Greeting() {
+  const hour = new Date().getHours();
+  let greeting = 'Good evening';
+  if (hour < 12) greeting = 'Good morning';
+  else if (hour < 17) greeting = 'Good afternoon';
+
   return (
-    <View style={styles.statusItem}>
-      <View style={[styles.statusDot, active && styles.statusDotActive]} />
-      <Text style={styles.statusLabel}>{label}</Text>
+    <View style={styles.greeting}>
+      <Text style={styles.greetingText}>{greeting}</Text>
+      <Text style={styles.greetingSub}>Your home is running normally</Text>
     </View>
   );
 }
 
 export default function App() {
-  // Run simulation for demo (remove when connecting real ESP32)
   useSimulation();
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={colors.bg} />
-
-      {/* Top Bar */}
       <TopBar />
 
-      {/* Scrollable Content */}
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        {/* 3D House */}
-        <View style={styles.houseSection}>
-          <House3D />
-          <StatusBarBottom />
-        </View>
-
-        {/* Sensors */}
+        <Greeting />
+        <QuickStatus />
         <SensorCards />
-
-        {/* Device Controls */}
         <DeviceControls />
-
-        {/* Activity Log */}
         <ActivityLog />
-
-        {/* Bottom spacer */}
         <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
@@ -86,46 +85,49 @@ const styles = StyleSheet.create({
   scroll: {
     flex: 1,
   },
-  scrollContent: {
+  content: {
     padding: spacing.xl,
     gap: spacing.xl,
   },
-  houseSection: {
-    position: 'relative',
+  greeting: {
+    gap: 4,
+    paddingTop: spacing.sm,
   },
-  statusBarBottom: {
+  greetingText: {
+    color: colors.text,
+    fontSize: fontSize.xl,
+    fontWeight: fontWeight.bold,
+    letterSpacing: -0.5,
+  },
+  greetingSub: {
+    color: colors.textMuted,
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.regular,
+  },
+  quickStatus: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: spacing.xxl,
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    backgroundColor: 'rgba(255,255,255,0.025)',
-    borderWidth: 1,
-    borderColor: colors.cardBorder,
-    borderRadius: 14,
-    marginTop: spacing.md,
-    alignSelf: 'center',
+    gap: spacing.sm,
+    flexWrap: 'wrap',
   },
-  statusItem: {
+  statusPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+    backgroundColor: colors.bgCard,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 6,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: 'rgba(255,255,255,0.15)',
   },
-  statusDotActive: {
-    backgroundColor: colors.green,
-    shadowColor: colors.green,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 4,
-  },
-  statusLabel: {
-    color: colors.textDim,
+  statusPillText: {
+    color: colors.textSecondary,
     fontSize: fontSize.xs,
+    fontWeight: fontWeight.medium,
   },
 });

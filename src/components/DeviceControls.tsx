@@ -1,10 +1,16 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Switch } from 'react-native';
-import { colors, fontSize, spacing, radius, roomColors } from '../theme';
+import { View, Text, StyleSheet, Switch } from 'react-native';
+import { colors, fontSize, spacing, radius, fontWeight } from '../theme';
 import { useHomeStore, RoomId } from '../store/useHomeStore';
 import * as Haptics from 'expo-haptics';
 
 const ROOM_ORDER: RoomId[] = ['living', 'bedroom', 'porch'];
+
+const ROOM_META: Record<RoomId, { color: string; glow: string; emoji: string }> = {
+  living: { color: colors.roomLiving, glow: colors.roomLivingGlow, emoji: '💡' },
+  bedroom: { color: colors.roomBedroom, glow: colors.roomBedroomGlow, emoji: '🌀' },
+  porch: { color: colors.roomPorch, glow: colors.roomPorchGlow, emoji: '🔆' },
+};
 
 export default function DeviceControls() {
   const rooms = useHomeStore((s) => s.rooms);
@@ -23,46 +29,66 @@ export default function DeviceControls() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.sectionTitle}>Devices</Text>
-        {isAuto && (
-          <View style={styles.autoTag}>
-            <Text style={styles.autoTagText}>PIR Controlled</Text>
-          </View>
-        )}
+        <Text style={styles.count}>
+          {Object.values(rooms).filter((r) => r.isOn).length} active
+        </Text>
       </View>
 
-      <View style={[styles.list, isAuto && styles.listAuto]}>
-        {ROOM_ORDER.map((roomId) => {
+      <View style={[styles.list, isAuto && styles.listDisabled]}>
+        {ROOM_ORDER.map((roomId, index) => {
           const room = rooms[roomId];
-          const rc = roomColors[roomId];
+          const meta = ROOM_META[roomId];
+          const isLast = index === ROOM_ORDER.length - 1;
+
           return (
-            <View key={roomId} style={styles.row}>
+            <View
+              key={roomId}
+              style={[styles.row, !isLast && styles.rowBorder]}
+            >
               <View style={styles.rowLeft}>
                 <View
                   style={[
-                    styles.iconBox,
-                    { backgroundColor: `${rc.primary}15` },
-                    room.isOn && { backgroundColor: `${rc.primary}30` },
+                    styles.iconCircle,
+                    { backgroundColor: meta.glow },
+                    room.isOn && { backgroundColor: `${meta.color}30` },
                   ]}
                 >
-                  <Text style={styles.iconEmoji}>{room.icon}</Text>
+                  <Text style={styles.emoji}>{meta.emoji}</Text>
                 </View>
-                <View>
+                <View style={styles.rowInfo}>
                   <Text style={styles.roomName}>{room.name}</Text>
                   <Text style={styles.roomSub}>{room.subtitle}</Text>
                 </View>
               </View>
-              <Switch
-                value={room.isOn}
-                onValueChange={() => handleToggle(roomId)}
-                trackColor={{ false: 'rgba(255,255,255,0.1)', true: rc.primary }}
-                thumbColor={room.isOn ? '#fff' : 'rgba(255,255,255,0.5)'}
-                ios_backgroundColor="rgba(255,255,255,0.1)"
-                disabled={isAuto}
-              />
+
+              <View style={styles.rowRight}>
+                {room.isOn && (
+                  <View style={[styles.activeDot, { backgroundColor: meta.color }]} />
+                )}
+                <Switch
+                  value={room.isOn}
+                  onValueChange={() => handleToggle(roomId)}
+                  trackColor={{
+                    false: 'rgba(255,255,255,0.08)',
+                    true: `${meta.color}80`,
+                  }}
+                  thumbColor={room.isOn ? meta.color : 'rgba(255,255,255,0.3)'}
+                  ios_backgroundColor="rgba(255,255,255,0.08)"
+                  disabled={isAuto}
+                />
+              </View>
             </View>
           );
         })}
       </View>
+
+      {isAuto && (
+        <View style={styles.autoNote}>
+          <Text style={styles.autoNoteText}>
+            Devices are controlled by the PIR sensor in Auto mode
+          </Text>
+        </View>
+      )}
     </View>
   );
 }
@@ -77,43 +103,35 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   sectionTitle: {
-    color: colors.textDim,
+    color: colors.textSecondary,
     fontSize: fontSize.xs,
-    fontWeight: '600',
+    fontWeight: fontWeight.semibold,
     textTransform: 'uppercase',
-    letterSpacing: 1.5,
+    letterSpacing: 1.2,
   },
-  autoTag: {
-    backgroundColor: 'rgba(59,130,246,0.08)',
-    borderWidth: 1,
-    borderColor: 'rgba(59,130,246,0.15)',
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-  },
-  autoTagText: {
-    color: colors.accent,
-    fontSize: 9,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+  count: {
+    color: colors.textMuted,
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.medium,
   },
   list: {
-    backgroundColor: colors.card,
+    backgroundColor: colors.bgCard,
     borderWidth: 1,
-    borderColor: colors.cardBorder,
+    borderColor: colors.border,
     borderRadius: radius.lg,
     overflow: 'hidden',
   },
-  listAuto: {
-    opacity: 0.4,
+  listDisabled: {
+    opacity: 0.35,
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    paddingHorizontal: spacing.xl,
+  },
+  rowBorder: {
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(255,255,255,0.04)',
   },
@@ -122,24 +140,44 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
   },
-  iconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  iconCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iconEmoji: {
-    fontSize: 16,
+  emoji: {
+    fontSize: 18,
+  },
+  rowInfo: {
+    gap: 2,
   },
   roomName: {
     color: colors.text,
-    fontSize: fontSize.md,
-    fontWeight: '500',
+    fontSize: fontSize.base,
+    fontWeight: fontWeight.medium,
   },
   roomSub: {
-    color: colors.textDim,
+    color: colors.textMuted,
     fontSize: fontSize.xs,
-    marginTop: 2,
+  },
+  rowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  activeDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  autoNote: {
+    paddingHorizontal: spacing.sm,
+  },
+  autoNoteText: {
+    color: colors.textMuted,
+    fontSize: fontSize.xs,
+    fontStyle: 'italic',
   },
 });

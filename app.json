@@ -1,32 +1,22 @@
 {
   "expo": {
-    "name": "Smart Home",
-    "slug": "smart-home",
+    "name": "Homely",
+    "slug": "homely-smart-home",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0A0A0F",
+    "backgroundColor": "#080C14",
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#0A0A0F",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/adaptive-foreground.png",
+        "backgroundColor": "#080C14"
       },
-      "package": "com.smarthome.app",
+      "package": "com.homely.smarthome",
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
-      "expo-status-bar",
-      [
-        "expo-gl",
-        {
-          "android": {
-            "opengl": "3.0"
-          }
-        }
-      ]
+      "expo-status-bar"
     ]
   }
 }
