@@ -1,7 +1,7 @@
 import { useHomeStore } from '../store/useHomeStore';
 
 // ── Config ──
-const MDNS_HOST = 'smarthome.local';
+const MDNS_HOST = 'homely-smarthome.local';
 const POLL_INTERVAL = 3000;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let baseUrl: string | null = null;
