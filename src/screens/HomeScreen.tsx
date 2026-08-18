@@ -17,6 +17,7 @@ import { useNavigation } from '@react-navigation/native';
 import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore, RoomId } from '../store/useHomeStore';
 import TopBar from '../components/TopBar';
+import { useRoomToggle } from '../hooks/useRoomToggle';
 import * as Haptics from 'expo-haptics';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -212,7 +213,7 @@ function RoomCard({
 }) {
   const navigation = useNavigation<Nav>();
   const room = useHomeStore((s) => s.rooms[roomId]);
-  const toggleRoom = useHomeStore((s) => s.toggleRoom);
+  const { toggleRoom: toggleRoomApi } = useRoomToggle();
   const mode = useHomeStore((s) => s.mode);
   const accentColor = ROOM_COLOR[roomId];
   const isOn = room.isOn || (roomId === 'bedroom' && !!room.fanOn);
@@ -221,7 +222,7 @@ function RoomCard({
   const handleToggle = (newVal: boolean) => {
     if (mode === 'auto' && room.mode === 'auto' && roomId === 'living') return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (newVal !== room.isOn) toggleRoom(roomId);
+    if (newVal !== room.isOn) toggleRoomApi(roomId);
   };
 
   return (

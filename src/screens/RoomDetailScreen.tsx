@@ -16,6 +16,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/RootNavigator';
 import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore, RoomId } from '../store/useHomeStore';
+import { useRoomToggle } from '../hooks/useRoomToggle';
 import * as Haptics from 'expo-haptics';
 
 type Nav = NativeStackNavigationProp<RootStackParamList>;
@@ -100,8 +101,7 @@ const pt = StyleSheet.create({
 // ── Bedroom Specific Device Controls (Relay CH3 Light + Relay CH4 Fan) ──
 function BedroomControls({ accentColor }: { accentColor: string }) {
   const bedroom = useHomeStore((s) => s.rooms.bedroom);
-  const toggleRoom = useHomeStore((s) => s.toggleRoom);
-  const setBedroomFan = useHomeStore((s) => s.setBedroomFan);
+  const { toggleRoom: toggleRoomApi, toggleBedroomFan } = useRoomToggle();
   const setTargetTemp = useHomeStore((s) => s.setTargetTemp);
   const setRoomMode = useHomeStore((s) => s.setRoomMode);
 
@@ -110,12 +110,12 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
 
   const handleLightToggle = (v: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (v !== bedroom.isOn) toggleRoom('bedroom');
+    if (v !== bedroom.isOn) toggleRoomApi('bedroom');
   };
 
   const handleFanToggle = (v: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setBedroomFan(v, v ? 'Low' : 'Off');
+    toggleBedroomFan(v);
   };
 
   const adjustTarget = (delta: number) => {
@@ -209,7 +209,7 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
 // ── Living Room Specific Controls (Relay CH2 with PIR Motion) ──
 function LivingRoomControls({ accentColor }: { accentColor: string }) {
   const living = useHomeStore((s) => s.rooms.living);
-  const toggleRoom = useHomeStore((s) => s.toggleRoom);
+  const { toggleRoom: toggleRoomApi } = useRoomToggle();
   const setRoomMode = useHomeStore((s) => s.setRoomMode);
   const motionDetected = useHomeStore((s) => s.motionDetected);
 
@@ -217,7 +217,7 @@ function LivingRoomControls({ accentColor }: { accentColor: string }) {
 
   const handleToggle = (v: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (v !== living.isOn) toggleRoom('living');
+    if (v !== living.isOn) toggleRoomApi('living');
   };
 
   return (
@@ -283,11 +283,11 @@ function LivingRoomControls({ accentColor }: { accentColor: string }) {
 // ── Porch Specific Controls (Relay CH1 Manual Only) ──
 function PorchControls({ accentColor }: { accentColor: string }) {
   const porch = useHomeStore((s) => s.rooms.porch);
-  const toggleRoom = useHomeStore((s) => s.toggleRoom);
+  const { toggleRoom: toggleRoomApi } = useRoomToggle();
 
   const handleToggle = (v: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    if (v !== porch.isOn) toggleRoom('porch');
+    if (v !== porch.isOn) toggleRoomApi('porch');
   };
 
   return (

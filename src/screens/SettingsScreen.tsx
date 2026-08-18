@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore } from '../store/useHomeStore';
+import { discoverDevice, setManualIp } from '../api/esp32';
 import TopBar from '../components/TopBar';
 
 function SectionCard({
@@ -84,8 +85,13 @@ export default function SettingsScreen() {
   const [ipDraft, setIpDraft] = useState(esp32Ip);
   const [modeOpen, setModeOpen] = useState(false);
 
-  const saveIp = () => {
-    setEsp32Ip(ipDraft.trim());
+  const saveIp = async () => {
+    const ip = ipDraft.trim();
+    setEsp32Ip(ip);
+    if (ip) {
+      setManualIp(ip);
+      await discoverDevice();
+    }
   };
 
   return (

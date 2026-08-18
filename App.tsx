@@ -9,11 +9,11 @@ import {
   PlusJakartaSans_700Bold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 import RootNavigator from './src/navigation/RootNavigator';
-import { useSimulation } from './src/hooks/useSimulation';
+import { usePolling } from './src/hooks/usePolling';
 import { colors } from './src/theme';
 
 function AppInner() {
-  useSimulation();
+  usePolling();
   return <RootNavigator />;
 }
 

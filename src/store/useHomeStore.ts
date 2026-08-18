@@ -9,10 +9,10 @@ export interface RoomState {
   name: string;
   subtitle: string;
   icon: string;
-  isOn: boolean; // Main light/power
-  fanOn?: boolean; // For bedroom fan (Relay CH4)
+  isOn: boolean;
+  fanOn?: boolean;
   fanSpeed?: 'Off' | 'Low' | 'Medium' | 'High';
-  targetTemp?: number; // Target temperature for DHT11 fan trigger
+  targetTemp?: number;
   mode: RoomMode;
   temperature?: number;
   humidity?: number;
@@ -30,35 +30,32 @@ export interface ActivityEntry {
 }
 
 interface HomeState {
-  // Mode
   mode: Mode;
   defaultMode: Mode;
 
-  // Rooms
   rooms: Record<RoomId, RoomState>;
 
-  // Sensors
-  temperature: number; // DHT11 Bedroom ambient
-  humidity: number;    // DHT11 Bedroom humidity
+  temperature: number;
+  humidity: number;
   lastUpdated: number;
 
-  // Motion (PIR - Living Room Entrance)
   motionDetected: boolean;
   lastMotion: number | null;
 
-  // ESP32 connection
   esp32Ip: string;
   isConnected: boolean;
 
-  // Activity log
   activityLog: ActivityEntry[];
 
   // Actions
   setMode: (mode: Mode) => void;
+  setModeSilent: (mode: Mode) => void;
   setDefaultMode: (mode: Mode) => void;
   toggleRoom: (roomId: RoomId) => void;
   setRoomState: (roomId: RoomId, isOn: boolean) => void;
+  setBedroomLight: (on: boolean) => void;
   setBedroomFan: (fanOn: boolean, fanSpeed?: 'Off' | 'Low' | 'Medium' | 'High') => void;
+  setBedroomFanSilent: (fanOn: boolean) => void;
   setTargetTemp: (temp: number) => void;
   setRoomMode: (roomId: RoomId, mode: RoomMode) => void;
   setSensors: (temp: number, humidity: number) => void;
@@ -93,10 +90,10 @@ export const useHomeStore = create<HomeState>((set, get) => ({
       isOn: false,
       fanOn: false,
       fanSpeed: 'Off',
-      targetTemp: 24.0,
+      targetTemp: 28.0, // matches firmware FAN_ON_TEMP
       mode: 'auto',
-      temperature: 22.4,
-      humidity: 58,
+      temperature: 0,
+      humidity: 0,
       relayChannel: 'CH3 / CH4',
       ledCount: 1,
     },
@@ -112,40 +109,16 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     },
   },
 
-  temperature: 24.2,
-  humidity: 62,
-  lastUpdated: Date.now(),
+  temperature: 0,
+  humidity: 0,
+  lastUpdated: 0,
   motionDetected: false,
   lastMotion: null,
-  esp32Ip: '192.168.1.42',
+  esp32Ip: '',
   isConnected: false,
-  activityLog: [
-    {
-      id: 'seed-1',
-      message: 'Living Room lights turned ON',
-      subtitle: 'PIR motion detected at entrance (CH2)',
-      color: '#10B981',
-      timestamp: Date.now() - 1000 * 60 * 2,
-      roomId: 'living',
-    },
-    {
-      id: 'seed-2',
-      message: 'Bedroom Fan set to Low',
-      subtitle: 'DHT11 Temp reached 24.2°C (CH4)',
-      color: '#38BDF8',
-      timestamp: Date.now() - 1000 * 60 * 15,
-      roomId: 'bedroom',
-    },
-    {
-      id: 'seed-3',
-      message: 'Porch light turned OFF',
-      subtitle: 'Manual override (CH1)',
-      color: '#F59E0B',
-      timestamp: Date.now() - 1000 * 60 * 45,
-      roomId: 'porch',
-    },
-  ],
+  activityLog: [],
 
+  // With log entry (user action)
   setMode: (mode) => {
     set({ mode });
     get().addLogEntry(
@@ -154,6 +127,9 @@ export const useHomeStore = create<HomeState>((set, get) => ({
       mode === 'auto' ? '#3B82F6' : '#F59E0B'
     );
   },
+
+  // Silent (poll sync, no log spam)
+  setModeSilent: (mode) => set({ mode }),
 
   setDefaultMode: (defaultMode) => set({ defaultMode }),
 
@@ -178,10 +154,23 @@ export const useHomeStore = create<HomeState>((set, get) => ({
   setRoomState: (roomId, isOn) => {
     const state = get();
     const room = state.rooms[roomId];
+    if (room.isOn === isOn) return; // no change, skip
     set({
       rooms: {
         ...state.rooms,
         [roomId]: { ...room, isOn },
+      },
+    });
+  },
+
+  setBedroomLight: (on) => {
+    const state = get();
+    const bedroom = state.rooms.bedroom;
+    if (bedroom.isOn === on) return;
+    set({
+      rooms: {
+        ...state.rooms,
+        bedroom: { ...bedroom, isOn: on },
       },
     });
   },
@@ -193,11 +182,7 @@ export const useHomeStore = create<HomeState>((set, get) => ({
     set({
       rooms: {
         ...state.rooms,
-        bedroom: {
-          ...bedroom,
-          fanOn,
-          fanSpeed: speed,
-        },
+        bedroom: { ...bedroom, fanOn, fanSpeed: speed },
       },
     });
     get().addLogEntry(
@@ -206,6 +191,22 @@ export const useHomeStore = create<HomeState>((set, get) => ({
       fanOn ? '#38BDF8' : 'rgba(255,255,255,0.4)',
       'bedroom'
     );
+  },
+
+  setBedroomFanSilent: (fanOn) => {
+    const state = get();
+    const bedroom = state.rooms.bedroom;
+    if (bedroom.fanOn === fanOn) return;
+    set({
+      rooms: {
+        ...state.rooms,
+        bedroom: {
+          ...bedroom,
+          fanOn,
+          fanSpeed: fanOn ? 'Low' : 'Off',
+        },
+      },
+    });
   },
 
   setTargetTemp: (targetTemp) => {
@@ -231,37 +232,25 @@ export const useHomeStore = create<HomeState>((set, get) => ({
   },
 
   setSensors: (temperature, humidity) =>
-    set((state) => {
-      const isBedroomAuto = state.mode === 'auto' || state.rooms.bedroom.mode === 'auto';
-      const target = state.rooms.bedroom.targetTemp ?? 24.0;
-      const shouldFanRun = temperature >= target;
-      
-      let updatedBedroom = state.rooms.bedroom;
-      if (isBedroomAuto && shouldFanRun !== updatedBedroom.fanOn) {
-        updatedBedroom = {
-          ...updatedBedroom,
-          fanOn: shouldFanRun,
-          fanSpeed: shouldFanRun ? 'Low' : 'Off',
-        };
-      }
-
-      return {
-        temperature,
-        humidity,
-        lastUpdated: Date.now(),
-        rooms: {
-          ...state.rooms,
-          bedroom: {
-            ...updatedBedroom,
-            temperature,
-            humidity,
-          },
+    set((state) => ({
+      temperature,
+      humidity,
+      lastUpdated: Date.now(),
+      rooms: {
+        ...state.rooms,
+        bedroom: {
+          ...state.rooms.bedroom,
+          temperature,
+          humidity,
         },
-      };
-    }),
+      },
+    })),
 
   setMotionDetected: (motionDetected) =>
-    set({ motionDetected, lastMotion: motionDetected ? Date.now() : get().lastMotion }),
+    set({
+      motionDetected,
+      lastMotion: motionDetected ? Date.now() : get().lastMotion,
+    }),
 
   setEsp32Ip: (esp32Ip) => set({ esp32Ip }),
 

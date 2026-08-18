@@ -1,21 +1,30 @@
 import { useHomeStore } from '../store/useHomeStore';
 
-const POLL_INTERVAL = 4000; // 4 seconds
+// ── Config ──
+const MDNS_HOST = 'smarthome.local';
+const POLL_INTERVAL = 3000;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+let baseUrl: string | null = null;
 
-function getBaseUrl(): string | null {
-  const ip = useHomeStore.getState().esp32Ip;
-  if (!ip) return null;
-  return `http://${ip}`;
+// ── Network helpers ──
+
+function getBaseUrl(): string {
+  if (baseUrl) return baseUrl;
+  const store = useHomeStore.getState();
+  // Try mDNS first, fall back to manual IP
+  return store.esp32Ip
+    ? `http://${store.esp32Ip}`
+    : `http://${MDNS_HOST}`;
 }
 
-async function fetchJson<T>(path: string): Promise<T | null> {
-  const base = getBaseUrl();
-  if (!base) return null;
+async function fetchJson<T>(path: string, timeoutMs = 3000): Promise<T | null> {
   try {
-    const res = await fetch(`${base}${path}`, {
-      headers: { 'X-Api-Key': 'smart-home-2024' },
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(`${getBaseUrl()}${path}`, {
+      signal: controller.signal,
     });
+    clearTimeout(timer);
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -23,51 +32,71 @@ async function fetchJson<T>(path: string): Promise<T | null> {
   }
 }
 
-async function postJson(path: string, body: Record<string, unknown>): Promise<boolean> {
-  const base = getBaseUrl();
-  if (!base) return false;
+async function postJson(
+  path: string,
+  body: Record<string, unknown>,
+  timeoutMs = 3000
+): Promise<boolean> {
   try {
-    const res = await fetch(`${base}${path}`, {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch(`${getBaseUrl()}${path}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Api-Key': 'smart-home-2024',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
+      signal: controller.signal,
     });
+    clearTimeout(timer);
     return res.ok;
   } catch {
     return false;
   }
 }
 
-// ── Public API ──
+// ── Response types (match firmware exactly) ──
 
-export interface SensorData {
+export interface StatusResponse {
+  mode: 'auto' | 'manual';
+  porch: { on: boolean };
+  living: { on: boolean; motion: boolean };
+  bedroom_light: { on: boolean };
+  bedroom_fan: { on: boolean };
+}
+
+export interface SensorResponse {
   temperature: number;
   humidity: number;
 }
 
-export interface StatusData {
-  motion: boolean;
-  motor: boolean;
-  led: boolean;
-  mode: 'auto' | 'manual';
+// ── API calls ──
+
+export async function ping(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 2000);
+    const res = await fetch(`${getBaseUrl()}/ping`, {
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
-export async function fetchSensors(): Promise<SensorData | null> {
-  return fetchJson<SensorData>('/sensors');
+export async function fetchStatus(): Promise<StatusResponse | null> {
+  return fetchJson<StatusResponse>('/status');
 }
 
-export async function fetchStatus(): Promise<StatusData | null> {
-  return fetchJson<StatusData>('/status');
+export async function fetchSensors(): Promise<SensorResponse | null> {
+  return fetchJson<SensorResponse>('/sensors');
 }
 
-export async function setRelayState(
-  channel: 'motor' | 'porch' | 'living',
-  state: 'on' | 'off'
+export async function setRelay(
+  channel: 'porch' | 'living' | 'bedroom_light' | 'bedroom_fan',
+  on: boolean
 ): Promise<boolean> {
-  return postJson(`/relay/${channel}`, { state });
+  return postJson(`/relay/${channel}`, { on });
 }
 
 export async function setMode(mode: 'auto' | 'manual'): Promise<boolean> {
@@ -76,40 +105,49 @@ export async function setMode(mode: 'auto' | 'manual'): Promise<boolean> {
 
 // ── Polling ──
 
-export function startPolling() {
+export async function startPolling() {
   stopPolling();
 
   const poll = async () => {
     const store = useHomeStore.getState();
+    const connected = await ping();
 
-    const [sensors, status] = await Promise.all([
-      fetchSensors(),
+    if (!connected) {
+      store.setConnected(false);
+      return;
+    }
+
+    store.setConnected(true);
+
+    const [status, sensors] = await Promise.all([
       fetchStatus(),
+      fetchSensors(),
     ]);
 
-    if (sensors) {
-      store.setSensors(sensors.temperature, sensors.humidity);
-      store.setConnected(true);
-    }
-
     if (status) {
-      store.setMotionDetected(status.motion);
-      store.setConnected(true);
-
-      // Sync room states from ESP32
-      if (status.mode === 'auto') {
-        store.setRoomState('porch', status.motor);
-        store.setRoomState('living', status.led);
+      // Sync mode
+      if (store.mode !== status.mode) {
+        // Don't trigger log entries on poll sync — only on user action
+        store.setModeSilent(status.mode);
       }
+
+      // Sync room states
+      store.setRoomState('porch', status.porch.on);
+      store.setRoomState('living', status.living.on);
+      store.setMotionDetected(status.living.motion);
+      store.setBedroomLight(status.bedroom_light.on);
+      store.setBedroomFan(status.bedroom_fan.on);
     }
 
-    // If both failed, mark disconnected
-    if (!sensors && !status && store.esp32Ip) {
-      store.setConnected(false);
+    if (sensors && sensors.temperature > 0) {
+      store.setSensors(sensors.temperature, sensors.humidity);
     }
   };
 
-  poll();
+  // First poll immediately
+  await poll();
+
+  // Then every 3 seconds
   pollTimer = setInterval(poll, POLL_INTERVAL);
 }
 
@@ -117,5 +155,33 @@ export function stopPolling() {
   if (pollTimer) {
     clearInterval(pollTimer);
     pollTimer = null;
+  }
+}
+
+// ── mDNS discovery ──
+
+export async function discoverDevice(): Promise<boolean> {
+  // Try mDNS hostname first
+  baseUrl = `http://${MDNS_HOST}`;
+  const mdnsOk = await ping();
+  if (mdnsOk) return true;
+
+  // Try manual IP if set
+  const ip = useHomeStore.getState().esp32Ip;
+  if (ip) {
+    baseUrl = `http://${ip}`;
+    const ipOk = await ping();
+    if (ipOk) return true;
+  }
+
+  baseUrl = null;
+  return false;
+}
+
+export function setManualIp(ip: string) {
+  if (ip) {
+    baseUrl = `http://${ip}`;
+  } else {
+    baseUrl = null; // fall back to mDNS
   }
 }
