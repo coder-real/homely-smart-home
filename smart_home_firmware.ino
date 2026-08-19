@@ -132,10 +132,18 @@ void updateStatusLeds() {
 }
 
 // ============================================================
-// Relay helpers
+// Relay helpers (Configurable Active-HIGH vs Active-LOW)
 // ============================================================
+// Set to 'false' if your relays turn ON with HIGH (Active-HIGH).
+// Set to 'true' if your relays turn ON with LOW (Active-LOW).
+const bool RELAY_ACTIVE_LOW = false;
+
 void setRelay(int pin, bool on) {
-  digitalWrite(pin, on ? LOW : HIGH); // active-LOW
+  if (RELAY_ACTIVE_LOW) {
+    digitalWrite(pin, on ? LOW : HIGH);
+  } else {
+    digitalWrite(pin, on ? HIGH : LOW);
+  }
 }
 
 // ============================================================
@@ -204,7 +212,10 @@ void handleRelayBedroomLight() {
 }
 
 void handleRelayLiving() {
-  sendJson(409, "{\"ok\":false,\"error\":\"Living room is automatic PIR-controlled\"}");
+  livingOn = bodyWantsOn();
+  setRelay(RELAY_LIVING, livingOn);
+  if (livingOn) lastMotionTime = millis();
+  sendJson(200, "{\"ok\":true,\"living\":" + String(livingOn ? "true" : "false") + "}");
 }
 
 void handleRelayBedroomFan() {
@@ -468,15 +479,18 @@ void handleMotionAutomation() {
 
   motionActive = (pirHighStreak >= PIR_CONFIRM_COUNT);
 
-  if (motionActive) {
-    lastMotionTime = millis();
-    if (!livingOn) {
-      livingOn = true;
-      setRelay(RELAY_LIVING, true);
+  // Motion automation only drives the living room relay when in AUTO mode
+  if (systemMode == "auto") {
+    if (motionActive) {
+      lastMotionTime = millis();
+      if (!livingOn) {
+        livingOn = true;
+        setRelay(RELAY_LIVING, true);
+      }
+    } else if (livingOn && (millis() - lastMotionTime > MOTION_HOLD_MS)) {
+      livingOn = false;
+      setRelay(RELAY_LIVING, false);
     }
-  } else if (livingOn && (millis() - lastMotionTime > MOTION_HOLD_MS)) {
-    livingOn = false;
-    setRelay(RELAY_LIVING, false);
   }
 }
 
