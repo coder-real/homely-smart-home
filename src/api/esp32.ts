@@ -207,6 +207,12 @@ export async function startPolling() {
         store.setConnected(true);
       }
 
+      // Always sync motion detection and environmental sensors in real time
+      store.setMotionDetected(data.living.motion);
+      if (data.temperature !== undefined && data.humidity !== undefined) {
+        store.setSensors(data.temperature, data.humidity);
+      }
+
       // If a manual command was sent recently, skip overwriting the optimistic UI state.
       // This prevents the poll from reverting a toggle the user just made.
       const isLocked = (Date.now() - lastCommandTime) < COMMAND_LOCK_MS;
@@ -218,14 +224,8 @@ export async function startPolling() {
       }
       store.setRoomState('porch', data.porch.on);
       store.setRoomState('living', data.living.on);
-      store.setMotionDetected(data.living.motion);
       store.setBedroomLight(data.bedroom_light.on);
       store.setBedroomFanSilent(data.bedroom_fan.on);
-
-      // Sync temperature & humidity
-      if (data.temperature !== undefined && data.humidity !== undefined) {
-        store.setSensors(data.temperature, data.humidity);
-      }
     } finally {
       isPollInProgress = false;
     }

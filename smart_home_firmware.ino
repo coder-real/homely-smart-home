@@ -126,11 +126,10 @@ void updateStatusLeds() {
 }
 
 // ============================================================
-// Relay helpers (Active-LOW: standard relay modules turn ON when the signal is LOW)
+// Relay helpers (HIGH = ON, LOW = OFF)
 // ============================================================
 void setRelay(int pin, bool on) {
-  // Active-LOW: LOW = relay coil energized (ON), HIGH = relay coil off (OFF)
-  digitalWrite(pin, on ? LOW : HIGH);
+  digitalWrite(pin, on ? HIGH : LOW);
 }
 
 // ============================================================
@@ -470,7 +469,7 @@ void setup() {
 // Automation logic
 // ============================================================
 void handleMotionAutomation() {
-  // Debounce: only sample PIR every 50ms to avoid thousands of reads per second
+  // Debounce: sample PIR every 50ms to avoid noisy reads
   static unsigned long lastPirCheck = 0;
   unsigned long now = millis();
   if (now - lastPirCheck < 50) return;
@@ -484,13 +483,19 @@ void handleMotionAutomation() {
     pirHighStreak = 0;
   }
 
-  motionActive = (pirHighStreak >= PIR_CONFIRM_COUNT);
+  // When motion is confirmed, record the timestamp
+  if (pirHighStreak >= PIR_CONFIRM_COUNT) {
+    lastMotionTime = now;
+  }
 
-  // Motion automation only drives the living room relay when in AUTO mode
-  // In Manual mode, the user controls living room directly from the app
+  // Motion is held active for 4 seconds after detection
+  // This allows the App and Status Dashboard LED to show Motion Detected in real time (even in Manual mode)
+  motionActive = (lastMotionTime > 0 && (now - lastMotionTime < 4000));
+
+  // Physical light automation ONLY triggers in AUTO mode.
+  // In MANUAL mode, the living room light remains 100% under manual app control.
   if (systemMode == "auto") {
     if (motionActive) {
-      lastMotionTime = now;
       if (!livingOn) {
         livingOn = true;
         setRelay(RELAY_LIVING, true);
