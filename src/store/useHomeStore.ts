@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { setTargetTemp as apiSetTargetTemp } from '../api/esp32';
 
 export type RoomId = 'living' | 'bedroom' | 'porch';
 export type Mode = 'auto' | 'manual';
@@ -219,8 +218,7 @@ export const useHomeStore = create<HomeState>()(
             bedroom: { ...bedroom, targetTemp },
           },
         });
-        // Sync to ESP32 in real time
-        apiSetTargetTemp(targetTemp);
+        // Note: API sync is handled by useRoomToggle to avoid circular dependency
       },
 
       setRoomMode: (roomId, mode) => {
@@ -278,17 +276,28 @@ export const useHomeStore = create<HomeState>()(
     {
       name: 'homely-smart-home-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      // Persist activityLog, esp32Ip, and defaultMode across app restarts
       partialize: (state) => ({
         activityLog: state.activityLog,
         esp32Ip: state.esp32Ip,
         defaultMode: state.defaultMode,
-        rooms: {
-          bedroom: {
-            targetTemp: state.rooms.bedroom.targetTemp,
-          },
-        },
+        savedTargetTemp: state.rooms.bedroom.targetTemp,
       }),
+      merge: (persistedState: any, currentState: HomeState) => {
+        if (!persistedState) return currentState;
+        return {
+          ...currentState,
+          activityLog: Array.isArray(persistedState.activityLog) ? persistedState.activityLog : currentState.activityLog,
+          esp32Ip: typeof persistedState.esp32Ip === 'string' ? persistedState.esp32Ip : currentState.esp32Ip,
+          defaultMode: persistedState.defaultMode ?? currentState.defaultMode,
+          rooms: {
+            ...currentState.rooms,
+            bedroom: {
+              ...currentState.rooms.bedroom,
+              targetTemp: persistedState.savedTargetTemp ?? currentState.rooms.bedroom.targetTemp ?? 28.0,
+            },
+          },
+        };
+      },
     }
   )
 );

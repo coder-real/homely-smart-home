@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useHomeStore, RoomId } from '../store/useHomeStore';
-import { setRelay, setMode as apiSetMode } from '../api/esp32';
+import { setRelay, setMode as apiSetMode, setTargetTemp as apiSetTargetTemp } from '../api/esp32';
 
 /**
  * Wraps room toggle with optimistic UI + ESP32 API call.
@@ -75,5 +75,10 @@ export function useRoomToggle() {
     }
   }, []);
 
-  return { toggleRoom, toggleBedroomFan, switchMode };
+  const updateTargetTemp = useCallback(async (temp: number) => {
+    store.setTargetTemp(temp);
+    await apiSetTargetTemp(temp);
+  }, []);
+
+  return { toggleRoom, toggleBedroomFan, switchMode, updateTargetTemp };
 }

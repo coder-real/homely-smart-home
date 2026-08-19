@@ -101,8 +101,7 @@ const pt = StyleSheet.create({
 // ── Bedroom Specific Device Controls ──
 function BedroomControls({ accentColor }: { accentColor: string }) {
   const bedroom = useHomeStore((s) => s.rooms.bedroom);
-  const { toggleRoom: toggleRoomApi, toggleBedroomFan } = useRoomToggle();
-  const setTargetTemp = useHomeStore((s) => s.setTargetTemp);
+  const { toggleRoom: toggleRoomApi, toggleBedroomFan, updateTargetTemp } = useRoomToggle();
   const setRoomMode = useHomeStore((s) => s.setRoomMode);
 
   const target = bedroom.targetTemp ?? 24.0;
@@ -120,7 +119,7 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
 
   const adjustTarget = (delta: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setTargetTemp(Math.round((target + delta) * 10) / 10);
+    updateTargetTemp(Math.round((target + delta) * 10) / 10);
   };
 
   return (
