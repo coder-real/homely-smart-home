@@ -2,12 +2,14 @@ import { useHomeStore } from '../store/useHomeStore';
 
 // ── Config ──
 const MDNS_HOST = 'homely-smarthome.local';
-const POLL_INTERVAL = 2500;       // ms between status polls
-const REQUEST_TIMEOUT = 2500;     // ms for HTTP operations
+const POLL_INTERVAL = 1500;       // ms between status polls
+const REQUEST_TIMEOUT = 3000;     // ms for HTTP operations
+const COMMAND_LOCK_MS = 3000;     // ms to suppress poll sync after a manual command
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let activeBaseUrl: string | null = null;
 let isPollInProgress = false;
+let lastCommandTime = 0;          // timestamp of most recent toggle/mode command
 
 // ── Helpers ──
 
@@ -86,6 +88,7 @@ export async function setRelay(
       signal: controller.signal,
     });
     clearTimeout(timer);
+    if (res.ok) lastCommandTime = Date.now(); // Lock poll sync for COMMAND_LOCK_MS
     return res.ok;
   } catch {
     return false;
@@ -103,6 +106,7 @@ export async function setMode(mode: 'auto' | 'manual'): Promise<boolean> {
       signal: controller.signal,
     });
     clearTimeout(timer);
+    if (res.ok) lastCommandTime = Date.now(); // Lock poll sync for COMMAND_LOCK_MS
     return res.ok;
   } catch {
     return false;
@@ -185,6 +189,11 @@ export async function startPolling() {
       if (!store.isConnected) {
         store.setConnected(true);
       }
+
+      // If a manual command was sent recently, skip overwriting the optimistic UI state.
+      // This prevents the poll from reverting a toggle the user just made.
+      const isLocked = (Date.now() - lastCommandTime) < COMMAND_LOCK_MS;
+      if (isLocked) return;
 
       // Sync modes & room switches atomically
       if (store.mode !== data.mode) {

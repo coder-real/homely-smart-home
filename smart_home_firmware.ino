@@ -42,7 +42,7 @@ bool isWifiConnected = false;
 #define LED_BED_F     27   // LED 6: Bedroom Fan Relay State
 #define LED_MOTION    13   // LED 7: PIR Motion Detected Indicator
 
-#define ONBOARD_LED_PIN 2  // Onboard DevKit LED (mirrors status)
+// GPIO 2 is the onboard LED - not used for user feedback (7-LED external board is used instead)
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -103,8 +103,6 @@ void updateStatusLeds() {
     setLed(LED_BED_L,  slowBlinkState);
     setLed(LED_BED_F,  slowBlinkState);
     setLed(LED_MOTION, slowBlinkState);
-
-    digitalWrite(ONBOARD_LED_PIN, slowBlinkState);
   } else if (!isWifiConnected) {
     // 2. CONNECTING / RECONNECTING TO WI-FI:
     // Only Wi-Fi LED blinks fast, all other LEDs OFF
@@ -115,8 +113,6 @@ void updateStatusLeds() {
     setLed(LED_BED_L,  false);
     setLed(LED_BED_F,  false);
     setLed(LED_MOTION, false);
-
-    digitalWrite(ONBOARD_LED_PIN, fastBlinkState);
   } else {
     // 3. ONLINE & RUNNING (Real-Time Live House Dashboard):
     setLed(LED_WIFI,   true);                          // LED 1: Solid ON
@@ -126,24 +122,15 @@ void updateStatusLeds() {
     setLed(LED_BED_L,  bedroomLightOn);                // LED 5: Bedroom Light Relay State
     setLed(LED_BED_F,  bedroomFanOn);                  // LED 6: Bedroom Fan Relay State
     setLed(LED_MOTION, motionActive);                  // LED 7: Flashes ON when PIR motion detected
-
-    digitalWrite(ONBOARD_LED_PIN, HIGH);               // Solid ON
   }
 }
 
 // ============================================================
-// Relay helpers (Configurable Active-HIGH vs Active-LOW)
+// Relay helpers (Active-LOW: standard relay modules turn ON when the signal is LOW)
 // ============================================================
-// Set to 'false' if your relays turn ON with HIGH (Active-HIGH).
-// Set to 'true' if your relays turn ON with LOW (Active-LOW).
-const bool RELAY_ACTIVE_LOW = false;
-
 void setRelay(int pin, bool on) {
-  if (RELAY_ACTIVE_LOW) {
-    digitalWrite(pin, on ? LOW : HIGH);
-  } else {
-    digitalWrite(pin, on ? HIGH : LOW);
-  }
+  // Active-LOW: LOW = relay coil energized (ON), HIGH = relay coil off (OFF)
+  digitalWrite(pin, on ? LOW : HIGH);
 }
 
 // ============================================================
@@ -219,10 +206,8 @@ void handleRelayLiving() {
 }
 
 void handleRelayBedroomFan() {
-  if (systemMode != "manual") {
-    sendJson(409, "{\"ok\":false,\"error\":\"Switch to manual mode first\"}");
-    return;
-  }
+  // Always allow manual override from the app.
+  // In Auto mode, the temperature automation will resume control on next DHT read cycle.
   bedroomFanOn = bodyWantsOn();
   setRelay(RELAY_BEDROOM_FAN, bedroomFanOn);
   sendJson(200, "{\"ok\":true,\"bedroom_fan\":" + String(bedroomFanOn ? "true" : "false") + "}");
@@ -385,7 +370,7 @@ void setup() {
   setRelay(RELAY_BEDROOM_LIGHT, false);
   setRelay(RELAY_BEDROOM_FAN, false);
 
-  // Initial state: ALL LEDs OFF (HIGH for Common Anode)
+  // Initialize all LEDs to OFF (HIGH for Common Anode)
   digitalWrite(LED_WIFI, HIGH);
   digitalWrite(LED_MODE, HIGH);
   digitalWrite(LED_PORCH, HIGH);
@@ -393,7 +378,6 @@ void setup() {
   digitalWrite(LED_BED_L, HIGH);
   digitalWrite(LED_BED_F, HIGH);
   digitalWrite(LED_MOTION, HIGH);
-  digitalWrite(ONBOARD_LED_PIN, LOW);
 
   dht.begin();
 
@@ -469,10 +453,16 @@ void setup() {
 // Automation logic
 // ============================================================
 void handleMotionAutomation() {
+  // Debounce: only sample PIR every 50ms to avoid thousands of reads per second
+  static unsigned long lastPirCheck = 0;
+  unsigned long now = millis();
+  if (now - lastPirCheck < 50) return;
+  lastPirCheck = now;
+
   int motion = digitalRead(PIR_PIN);
 
   if (motion == HIGH) {
-    pirHighStreak++;
+    if (pirHighStreak < PIR_CONFIRM_COUNT + 1) pirHighStreak++;
   } else {
     pirHighStreak = 0;
   }
@@ -480,14 +470,15 @@ void handleMotionAutomation() {
   motionActive = (pirHighStreak >= PIR_CONFIRM_COUNT);
 
   // Motion automation only drives the living room relay when in AUTO mode
+  // In Manual mode, the user controls living room directly from the app
   if (systemMode == "auto") {
     if (motionActive) {
-      lastMotionTime = millis();
+      lastMotionTime = now;
       if (!livingOn) {
         livingOn = true;
         setRelay(RELAY_LIVING, true);
       }
-    } else if (livingOn && (millis() - lastMotionTime > MOTION_HOLD_MS)) {
+    } else if (livingOn && (now - lastMotionTime > MOTION_HOLD_MS)) {
       livingOn = false;
       setRelay(RELAY_LIVING, false);
     }

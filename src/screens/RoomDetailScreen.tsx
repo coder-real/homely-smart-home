@@ -199,7 +199,6 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
           value={!!bedroom.fanOn}
           onChange={handleFanToggle}
           accentColor={colors.primaryLight}
-          disabled={isAuto}
         />
       </View>
     </View>
@@ -231,26 +230,20 @@ function LivingRoomControls({ accentColor }: { accentColor: string }) {
             </View>
             <View style={mpc.textColumn}>
               <Text style={mpc.title} numberOfLines={1}>Living Room Lighting</Text>
-              <Text style={mpc.subtitle} numberOfLines={2}>Motion-activated</Text>
+              <Text style={mpc.subtitle} numberOfLines={2}>
+                {motionDetected ? 'Motion detected — lights active' : 'Manual or motion-activated'}
+              </Text>
             </View>
           </View>
-          <TouchableOpacity
-            style={[mpc.modePill, isAuto ? mpc.modePillAuto : mpc.modePillManual]}
-            onPress={() => setRoomMode('living', isAuto ? 'manual' : 'auto')}
-            activeOpacity={0.8}
-          >
-            <Feather name={isAuto ? 'zap' : 'sliders'} size={11} color={isAuto ? colors.primaryLight : colors.amber} />
-            <Text style={[mpc.modeText, { color: isAuto ? colors.primaryLight : colors.amber }]}>
-              {isAuto ? 'AUTO' : 'MANUAL'}
-            </Text>
-          </TouchableOpacity>
+          <View style={mpc.badge}>
+            <Text style={mpc.badgeText}>{motionDetected ? 'MOTION' : 'MANUAL'}</Text>
+          </View>
         </View>
 
         <PillToggle
           value={living.isOn}
           onChange={handleToggle}
           accentColor={accentColor}
-          disabled={isAuto}
         />
       </View>
 
