@@ -65,8 +65,8 @@ int pirHighStreak = 0;
 bool motionActive = false;
 
 // ---- Fan / temperature automation ----
-const float FAN_ON_TEMP  = 33.0;
-const float FAN_OFF_TEMP = 27.0;
+float targetFanOnTemp = 28.0;     // Default: synced from the app's Target Temp setting
+const float FAN_OFF_HYSTERESIS = 2.0; // Fan turns off when temp drops 2°C below target
 
 // ============================================================
 // 7-LED Status Dashboard Manager (Common Anode: LOW = ON, HIGH = OFF)
@@ -225,6 +225,21 @@ void handleMode() {
   sendJson(200, "{\"ok\":true,\"mode\":\"" + systemMode + "\"}");
 }
 
+void handleTargetTemp() {
+  String body = server.arg("plain");
+  // Parse {"temp": 28.5} from the app
+  int idx = body.indexOf("\"temp\":");
+  if (idx != -1) {
+    float parsed = body.substring(idx + 7).toFloat();
+    if (parsed > 10.0 && parsed < 50.0) { // Sanity-check range
+      targetFanOnTemp = parsed;
+      Serial.print("Target fan temp updated to: ");
+      Serial.println(targetFanOnTemp);
+    }
+  }
+  sendJson(200, "{\"ok\":true,\"target_temp\":" + String(targetFanOnTemp, 1) + "}");
+}
+
 void handleResetWifi() {
   sendJson(200, "{\"ok\":true,\"message\":\"Clearing WiFi credentials and restarting AP mode...\"}");
   delay(1000);
@@ -363,7 +378,7 @@ void setup() {
   pinMode(LED_BED_L, OUTPUT);
   pinMode(LED_BED_F, OUTPUT);
   pinMode(LED_MOTION, OUTPUT);
-  pinMode(ONBOARD_LED_PIN, OUTPUT);
+
 
   setRelay(RELAY_PORCH, false);
   setRelay(RELAY_LIVING, false);
@@ -429,6 +444,7 @@ void setup() {
     server.on("/relay/bedroom_light", HTTP_POST, handleRelayBedroomLight);
     server.on("/relay/bedroom_fan", HTTP_POST, handleRelayBedroomFan);
     server.on("/mode", HTTP_POST, handleMode);
+    server.on("/target-temp", HTTP_POST, handleTargetTemp);
     server.on("/reset-wifi", HTTP_POST, handleResetWifi);
 
     // OPTIONS preflight
@@ -440,6 +456,7 @@ void setup() {
     server.on("/relay/bedroom_light", HTTP_OPTIONS, handleOptions);
     server.on("/relay/bedroom_fan", HTTP_OPTIONS, handleOptions);
     server.on("/mode", HTTP_OPTIONS, handleOptions);
+    server.on("/target-temp", HTTP_OPTIONS, handleOptions);
 
     server.begin();
     Serial.println("Homely Smart Home API Server ready.");
@@ -498,12 +515,17 @@ void handleFanAutomation() {
     lastHumidity = h;
 
     if (systemMode == "auto") {
-      if (!bedroomFanOn && t >= FAN_ON_TEMP) {
+      const float fanOffTemp = targetFanOnTemp - FAN_OFF_HYSTERESIS;
+      if (!bedroomFanOn && t >= targetFanOnTemp) {
         bedroomFanOn = true;
         setRelay(RELAY_BEDROOM_FAN, true);
-      } else if (bedroomFanOn && t <= FAN_OFF_TEMP) {
+        Serial.print("Fan AUTO ON at ");
+        Serial.print(t); Serial.println("°C");
+      } else if (bedroomFanOn && t <= fanOffTemp) {
         bedroomFanOn = false;
         setRelay(RELAY_BEDROOM_FAN, false);
+        Serial.print("Fan AUTO OFF at ");
+        Serial.print(t); Serial.println("°C");
       }
     }
   }

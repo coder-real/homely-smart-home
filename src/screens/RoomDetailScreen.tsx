@@ -190,7 +190,7 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
           <View style={mpc.fanStat}>
             <Text style={mpc.fanStatLabel}>CURRENT STATUS</Text>
             <Text style={[mpc.fanSpeedText, bedroom.fanOn && { color: colors.primaryLight }]}>
-              {bedroom.fanOn ? `Active (${bedroom.fanSpeed ?? 'Low'})` : 'Off'}
+              {bedroom.fanOn ? 'Active' : 'Off'}
             </Text>
           </View>
         </View>

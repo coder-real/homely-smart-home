@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { setTargetTemp as apiSetTargetTemp } from '../api/esp32';
 
 export type RoomId = 'living' | 'bedroom' | 'porch';
 export type Mode = 'auto' | 'manual';
@@ -179,16 +180,15 @@ export const useHomeStore = create<HomeState>()(
       setBedroomFan: (fanOn, fanSpeed) => {
         const state = get();
         const bedroom = state.rooms.bedroom;
-        const speed = fanSpeed ?? (fanOn ? 'Low' : 'Off');
         set({
           rooms: {
             ...state.rooms,
-            bedroom: { ...bedroom, fanOn, fanSpeed: speed },
+            bedroom: { ...bedroom, fanOn, fanSpeed: fanOn ? 'Low' : 'Off' },
           },
         });
         get().addLogEntry(
           `Bedroom Fan ${fanOn ? 'turned ON' : 'turned OFF'}`,
-          fanOn ? `Speed: ${speed}` : 'Fan stopped',
+          fanOn ? 'Active' : 'Fan stopped',
           fanOn ? '#38BDF8' : 'rgba(255,255,255,0.4)',
           'bedroom'
         );
@@ -219,6 +219,8 @@ export const useHomeStore = create<HomeState>()(
             bedroom: { ...bedroom, targetTemp },
           },
         });
+        // Sync to ESP32 in real time
+        apiSetTargetTemp(targetTemp);
       },
 
       setRoomMode: (roomId, mode) => {
@@ -281,6 +283,11 @@ export const useHomeStore = create<HomeState>()(
         activityLog: state.activityLog,
         esp32Ip: state.esp32Ip,
         defaultMode: state.defaultMode,
+        rooms: {
+          bedroom: {
+            targetTemp: state.rooms.bedroom.targetTemp,
+          },
+        },
       }),
     }
   )

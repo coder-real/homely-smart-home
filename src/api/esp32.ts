@@ -106,7 +106,24 @@ export async function setMode(mode: 'auto' | 'manual'): Promise<boolean> {
       signal: controller.signal,
     });
     clearTimeout(timer);
-    if (res.ok) lastCommandTime = Date.now(); // Lock poll sync for COMMAND_LOCK_MS
+    if (res.ok) lastCommandTime = Date.now();
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+export async function setTargetTemp(temp: number): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const res = await fetch(`${getTargetUrl()}/target-temp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ temp }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
     return res.ok;
   } catch {
     return false;
