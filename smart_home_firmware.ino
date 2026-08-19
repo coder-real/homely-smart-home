@@ -31,13 +31,18 @@ bool isWifiConnected = false;
 #define RELAY_BEDROOM_LIGHT 33   // manual only
 #define RELAY_BEDROOM_FAN   25   // temperature-driven in Auto mode
 
-// ---- External 3-Pin Status Indicator LEDs (Box / Enclosure Faceplate) ----
-// Connect 3 LEDs (or an RGB LED with current-limiting resistors) to these pins:
-#define LED_SETUP_PIN       18   // Amber/Yellow LED: Setup Mode (AP Active)
-#define LED_CONNECTING_PIN  19   // Blue LED: Connecting / Searching for Wi-Fi
-#define LED_ONLINE_PIN      21   // Green LED: Connected & Online
+// ---- 7-LED Hardware Status Dashboard (Common Anode, Active-LOW) ----
+// Connect Common Positive (+) leg to ESP32 3.3V pin via a single 220Ω resistor.
+// Connect individual Ground (-) legs to these ESP32 GPIO pins:
+#define LED_WIFI      18   // LED 1: Wi-Fi Status (Solid = Online, Fast Blink = Connecting, Slow = Setup)
+#define LED_MODE      19   // LED 2: System Mode (Auto = ON, Manual = OFF)
+#define LED_PORCH     21   // LED 3: Porch Light Relay State
+#define LED_LIVING    22   // LED 4: Living Room Light Relay State
+#define LED_BED_L     23   // LED 5: Bedroom Light Relay State
+#define LED_BED_F     27   // LED 6: Bedroom Fan Relay State
+#define LED_MOTION    13   // LED 7: PIR Motion Detected Indicator
 
-#define ONBOARD_LED_PIN     2    // Onboard DevKit LED (mirrors status)
+#define ONBOARD_LED_PIN 2  // Onboard DevKit LED (mirrors status)
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -64,47 +69,65 @@ const float FAN_ON_TEMP  = 33.0;
 const float FAN_OFF_TEMP = 27.0;
 
 // ============================================================
-// 3-Pin Status LED Indicator Manager (Non-blocking)
+// 7-LED Status Dashboard Manager (Common Anode: LOW = ON, HIGH = OFF)
 // ============================================================
 void updateStatusLeds() {
-  static unsigned long lastBlink = 0;
-  static bool blinkState = false;
+  static unsigned long lastSlowBlink = 0;
+  static unsigned long lastFastBlink = 0;
+  static bool slowBlinkState = false;
+  static bool fastBlinkState = false;
   unsigned long now = millis();
 
-  if (inConfigMode) {
-    // 1. SETUP / AP MODE:
-    // LED_SETUP (Pin 18) = Solid ON (or slow pulse)
-    // LED_CONNECTING = OFF, LED_ONLINE = OFF
-    digitalWrite(LED_SETUP_PIN, HIGH);
-    digitalWrite(LED_CONNECTING_PIN, LOW);
-    digitalWrite(LED_ONLINE_PIN, LOW);
+  // Non-blocking blink timers
+  if (now - lastSlowBlink >= 500) {
+    lastSlowBlink = now;
+    slowBlinkState = !slowBlinkState;
+  }
+  if (now - lastFastBlink >= 150) {
+    lastFastBlink = now;
+    fastBlinkState = !fastBlinkState;
+  }
 
-    // Onboard LED blinks slowly (500ms)
-    if (now - lastBlink >= 500) {
-      lastBlink = now;
-      blinkState = !blinkState;
-      digitalWrite(ONBOARD_LED_PIN, blinkState);
-    }
+  // Helper for Common Anode: LOW = ON (gives path to ground), HIGH = OFF
+  auto setLed = [](int pin, bool on) {
+    digitalWrite(pin, on ? LOW : HIGH);
+  };
+
+  if (inConfigMode) {
+    // 1. SETUP / AP MODE (Homely-SmartHome-Setup active):
+    // All 7 dashboard LEDs pulse slowly together
+    setLed(LED_WIFI,   slowBlinkState);
+    setLed(LED_MODE,   slowBlinkState);
+    setLed(LED_PORCH,  slowBlinkState);
+    setLed(LED_LIVING, slowBlinkState);
+    setLed(LED_BED_L,  slowBlinkState);
+    setLed(LED_BED_F,  slowBlinkState);
+    setLed(LED_MOTION, slowBlinkState);
+
+    digitalWrite(ONBOARD_LED_PIN, slowBlinkState);
   } else if (!isWifiConnected) {
     // 2. CONNECTING / RECONNECTING TO WI-FI:
-    // LED_CONNECTING (Pin 19) = Fast Blinking (150ms)
-    // LED_SETUP = OFF, LED_ONLINE = OFF
-    if (now - lastBlink >= 150) {
-      lastBlink = now;
-      blinkState = !blinkState;
-      digitalWrite(LED_CONNECTING_PIN, blinkState);
-      digitalWrite(ONBOARD_LED_PIN, blinkState);
-    }
-    digitalWrite(LED_SETUP_PIN, LOW);
-    digitalWrite(LED_ONLINE_PIN, LOW);
+    // Only Wi-Fi LED blinks fast, all other LEDs OFF
+    setLed(LED_WIFI,   fastBlinkState);
+    setLed(LED_MODE,   false);
+    setLed(LED_PORCH,  false);
+    setLed(LED_LIVING, false);
+    setLed(LED_BED_L,  false);
+    setLed(LED_BED_F,  false);
+    setLed(LED_MOTION, false);
+
+    digitalWrite(ONBOARD_LED_PIN, fastBlinkState);
   } else {
-    // 3. ONLINE & CONNECTED:
-    // LED_ONLINE (Pin 21) = Solid ON
-    // LED_SETUP = OFF, LED_CONNECTING = OFF
-    digitalWrite(LED_ONLINE_PIN, HIGH);
-    digitalWrite(LED_SETUP_PIN, LOW);
-    digitalWrite(LED_CONNECTING_PIN, LOW);
-    digitalWrite(ONBOARD_LED_PIN, HIGH);
+    // 3. ONLINE & RUNNING (Real-Time Live House Dashboard):
+    setLed(LED_WIFI,   true);                          // LED 1: Solid ON
+    setLed(LED_MODE,   systemMode == "auto");          // LED 2: ON in Auto, OFF in Manual
+    setLed(LED_PORCH,  porchOn);                       // LED 3: Porch Light Relay State
+    setLed(LED_LIVING, livingOn);                      // LED 4: Living Room Light Relay State
+    setLed(LED_BED_L,  bedroomLightOn);                // LED 5: Bedroom Light Relay State
+    setLed(LED_BED_F,  bedroomFanOn);                  // LED 6: Bedroom Fan Relay State
+    setLed(LED_MOTION, motionActive);                  // LED 7: Flashes ON when PIR motion detected
+
+    digitalWrite(ONBOARD_LED_PIN, HIGH);               // Solid ON
   }
 }
 
@@ -336,10 +359,14 @@ void setup() {
   pinMode(RELAY_BEDROOM_LIGHT, OUTPUT);
   pinMode(RELAY_BEDROOM_FAN, OUTPUT);
 
-  // Status LED Pins
-  pinMode(LED_SETUP_PIN, OUTPUT);
-  pinMode(LED_CONNECTING_PIN, OUTPUT);
-  pinMode(LED_ONLINE_PIN, OUTPUT);
+  // 7-LED Dashboard Pins (Common Anode, Active-LOW)
+  pinMode(LED_WIFI, OUTPUT);
+  pinMode(LED_MODE, OUTPUT);
+  pinMode(LED_PORCH, OUTPUT);
+  pinMode(LED_LIVING, OUTPUT);
+  pinMode(LED_BED_L, OUTPUT);
+  pinMode(LED_BED_F, OUTPUT);
+  pinMode(LED_MOTION, OUTPUT);
   pinMode(ONBOARD_LED_PIN, OUTPUT);
 
   setRelay(RELAY_PORCH, false);
@@ -347,9 +374,14 @@ void setup() {
   setRelay(RELAY_BEDROOM_LIGHT, false);
   setRelay(RELAY_BEDROOM_FAN, false);
 
-  digitalWrite(LED_SETUP_PIN, LOW);
-  digitalWrite(LED_CONNECTING_PIN, LOW);
-  digitalWrite(LED_ONLINE_PIN, LOW);
+  // Initial state: ALL LEDs OFF (HIGH for Common Anode)
+  digitalWrite(LED_WIFI, HIGH);
+  digitalWrite(LED_MODE, HIGH);
+  digitalWrite(LED_PORCH, HIGH);
+  digitalWrite(LED_LIVING, HIGH);
+  digitalWrite(LED_BED_L, HIGH);
+  digitalWrite(LED_BED_F, HIGH);
+  digitalWrite(LED_MOTION, HIGH);
   digitalWrite(ONBOARD_LED_PIN, LOW);
 
   dht.begin();
@@ -376,13 +408,13 @@ void setup() {
   while (WiFi.status() != WL_CONNECTED && millis() - start < 12000) {
     delay(150);
     Serial.print(".");
-    updateStatusLeds(); // Drive connecting LED blink
+    updateStatusLeds(); // Fast blink on Wi-Fi LED
   }
   Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
     isWifiConnected = true;
-    updateStatusLeds(); // Solid Green when connected
+    updateStatusLeds(); // Real-time live dashboard active
     Serial.print("Wi-Fi Connected! IP: ");
     Serial.println(WiFi.localIP());
 
@@ -493,7 +525,7 @@ void handleWifiWatchdog() {
 // Main loop
 // ============================================================
 void loop() {
-  updateStatusLeds(); // Drives 3-pin status indicator LEDs in real time
+  updateStatusLeds(); // Drives 7-LED real-time hardware status dashboard
 
   if (inConfigMode) {
     dnsServer.processNextRequest();

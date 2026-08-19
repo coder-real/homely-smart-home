@@ -13,16 +13,21 @@ This document details the enhancements made to the **Homely Smart Home** ESP32 f
 - **Non-Volatile Flash Storage (NVS)**: Uses the ESP32 `Preferences` library to save the SSID and password permanently.
 - **Factory Reset Endpoint**: Added `/reset-wifi` endpoint to clear credentials when needed.
 
-### 3-Pin External Status LED Indicator (Enclosure Faceplate)
-For sealed box/enclosure builds where the internal board LED is hidden, 3 dedicated GPIO pins drive external panel LEDs (or an RGB LED):
+### 7-LED Live Hardware Status Dashboard (Common Anode, Single Resistor Hack)
+Turns the 7-LED PCB board into a complete real-time hardware status panel. Connect the single common positive (+) leg to ESP32 **3.3V** via a single 220Ω resistor, and connect the 7 negative ground legs to individual GPIO pins (**Active-LOW: LOW = ON, HIGH = OFF**):
 
-| Pin | LED Color | State / Function | Behavior |
-|:---|:---|:---|:---|
-| **GPIO 18** | **Amber / Yellow** | **Setup Mode** | Solid ON when broadcasting `Homely-SmartHome-Setup` |
-| **GPIO 19** | **Blue** | **Connecting to Wi-Fi** | Fast blinking (150ms) while searching/connecting |
-| **GPIO 21** | **Green** | **Online & Ready** | Solid ON when connected and communicating |
+| LED # | Label | Real-Time Function | ESP32 GPIO Pin |
+|:---:|:---|:---|:---:|
+| **1** | `LED_WIFI` | Wi-Fi Status (Solid = Online, Fast Blink = Connecting, Slow Pulse = Setup) | **GPIO 18** |
+| **2** | `LED_MODE` | System Mode (Lit ON = Auto Mode, OFF = Manual Mode) | **GPIO 19** |
+| **3** | `LED_PORCH` | Porch Light Relay State (Mirrors Relay) | **GPIO 21** |
+| **4** | `LED_LIVING` | Living Room Light Relay State (Mirrors Relay) | **GPIO 22** |
+| **5** | `LED_BED_L` | Bedroom Light Relay State (Mirrors Relay) | **GPIO 23** |
+| **6** | `LED_BED_F` | Bedroom Fan Relay State (Mirrors Relay) | **GPIO 27** |
+| **7** | `LED_MOTION` | PIR Motion Detection (Flashes ON when motion is detected) | **GPIO 13** |
+| **+** | **Common Anode** | **Common Positive (+) Leg via single 220Ω resistor** | **3.3V Pin** |
 
-*(The onboard DevKit LED on **GPIO 2** also mirrors the state for bench testing).*
+*(The onboard DevKit LED on **GPIO 2** also mirrors the Wi-Fi state for bench testing).*
 
 ### Zero-Latency Communication & Single-Roundtrip Payload
 - **Atomic Telemetry Payload**: Consolidated `/status` to return all relay states + temperature + humidity + motion in a **single JSON payload**, eliminating TCP socket starvation on the single-threaded ESP32 web server.
@@ -47,7 +52,7 @@ For sealed box/enclosure builds where the internal board LED is hidden, 3 dedica
 ### Dedicated Setup Guide (`SetupGuideScreen.tsx`)
 - Created a 4-step visual setup guide with responsive card layouts.
 - Explains the setup hotspot, `192.168.4.1` portal, and mDNS discovery (`homely-smarthome.local`).
-- Features a **3-Pin Status LED Indicator Wiring Table** (GPIO 18, 19, 21).
+- Features a **7-LED Status Dashboard Reference Table**.
 
 ### Settings Screen (`SettingsScreen.tsx`)
 - Placed the **"How to Connect & Setup"** guide button at the top.

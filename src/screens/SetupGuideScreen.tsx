@@ -151,31 +151,79 @@ export default function SetupGuideScreen() {
           />
         </View>
 
-        {/* External 3-Pin Status LED Reference */}
+        {/* Hardware Status LED Indicators */}
         <View style={styles.section}>
-          <Text style={styles.sectionHeading}>STATUS LED INDICATORS (3-PIN EXTERNAL / BOX)</Text>
+          <Text style={styles.sectionHeading}>STATUS LED INDICATORS (ON-BOX DASHBOARD)</Text>
           <View style={styles.card}>
-            <View style={styles.ledRow}>
-              <View style={[styles.ledDot, { backgroundColor: colors.amber }]} />
-              <View style={styles.ledTextCol}>
-                <Text style={styles.ledTitle}>Amber / Yellow LED (GPIO 18)</Text>
-                <Text style={styles.ledDesc}>Setup Mode Active — Broadcasting Homely-SmartHome-Setup hotspot.</Text>
-              </View>
-            </View>
-            <View style={styles.divider} />
-            <View style={styles.ledRow}>
-              <View style={[styles.ledDot, { backgroundColor: colors.primaryLight }]} />
-              <View style={styles.ledTextCol}>
-                <Text style={styles.ledTitle}>Blue LED (GPIO 19)</Text>
-                <Text style={styles.ledDesc}>Connecting / Reconnecting — Searching for your home Wi-Fi.</Text>
-              </View>
-            </View>
-            <View style={styles.divider} />
             <View style={styles.ledRow}>
               <View style={[styles.ledDot, { backgroundColor: colors.success }]} />
               <View style={styles.ledTextCol}>
-                <Text style={styles.ledTitle}>Green LED (GPIO 21)</Text>
-                <Text style={styles.ledDesc}>Online &amp; Connected — Ready and communicating with the app.</Text>
+                <Text style={styles.ledTitle}>LED 1 — Wi-Fi &amp; Connection</Text>
+                <Text style={styles.ledDesc}>
+                  • Solid ON: Connected to your home Wi-Fi and online{'\n'}
+                  • Fast Blinking: Connecting to network{'\n'}
+                  • Slow Pulsing (all LEDs): Setup Mode (hotspot active)
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.ledRow}>
+              <View style={[styles.ledDot, { backgroundColor: colors.success }]} />
+              <View style={styles.ledTextCol}>
+                <Text style={styles.ledTitle}>LED 2 — System Mode</Text>
+                <Text style={styles.ledDesc}>Lit ON when in Auto Mode (sensors active), OFF in Manual Mode.</Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.ledRow}>
+              <View style={[styles.ledDot, { backgroundColor: colors.success }]} />
+              <View style={styles.ledTextCol}>
+                <Text style={styles.ledTitle}>LED 3 — Porch Light</Text>
+                <Text style={styles.ledDesc}>Lit ON when the Porch light is turned on.</Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.ledRow}>
+              <View style={[styles.ledDot, { backgroundColor: colors.success }]} />
+              <View style={styles.ledTextCol}>
+                <Text style={styles.ledTitle}>LED 4 — Living Room Light</Text>
+                <Text style={styles.ledDesc}>Lit ON when the Living Room lights are active.</Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.ledRow}>
+              <View style={[styles.ledDot, { backgroundColor: colors.success }]} />
+              <View style={styles.ledTextCol}>
+                <Text style={styles.ledTitle}>LED 5 — Bedroom Light</Text>
+                <Text style={styles.ledDesc}>Lit ON when the Bedroom light is turned on.</Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.ledRow}>
+              <View style={[styles.ledDot, { backgroundColor: colors.success }]} />
+              <View style={styles.ledTextCol}>
+                <Text style={styles.ledTitle}>LED 6 — Bedroom Fan</Text>
+                <Text style={styles.ledDesc}>Lit ON when the Bedroom ceiling fan is running.</Text>
+              </View>
+            </View>
+
+            <View style={styles.divider} />
+
+            <View style={styles.ledRow}>
+              <View style={[styles.ledDot, { backgroundColor: colors.success }]} />
+              <View style={styles.ledTextCol}>
+                <Text style={styles.ledTitle}>LED 7 — Motion Detector</Text>
+                <Text style={styles.ledDesc}>Flashes instantly whenever motion is detected in the area.</Text>
               </View>
             </View>
           </View>
