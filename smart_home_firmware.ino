@@ -216,6 +216,15 @@ void handleMode() {
   String body = server.arg("plain");
   if (body.indexOf("auto") != -1) {
     systemMode = "auto";
+    // Immediately evaluate fan state when entering Auto mode:
+    // Only ON if current temperature is at or above target temp
+    if (lastTemp >= targetFanOnTemp) {
+      bedroomFanOn = true;
+      setRelay(RELAY_BEDROOM_FAN, true);
+    } else {
+      bedroomFanOn = false;
+      setRelay(RELAY_BEDROOM_FAN, false);
+    }
   } else if (body.indexOf("manual") != -1) {
     systemMode = "manual";
   }
@@ -226,14 +235,25 @@ void handleMode() {
 
 void handleTargetTemp() {
   String body = server.arg("plain");
-  // Parse {"temp": 28.5} from the app
   int idx = body.indexOf("\"temp\":");
   if (idx != -1) {
     float parsed = body.substring(idx + 7).toFloat();
-    if (parsed > 10.0 && parsed < 50.0) { // Sanity-check range
+    if (parsed > 10.0 && parsed < 50.0) {
       targetFanOnTemp = parsed;
       Serial.print("Target fan temp updated to: ");
       Serial.println(targetFanOnTemp);
+
+      // In Auto mode, immediately adjust fan based on updated target
+      if (systemMode == "auto") {
+        const float fanOffTemp = targetFanOnTemp - FAN_OFF_HYSTERESIS;
+        if (lastTemp >= targetFanOnTemp && !bedroomFanOn) {
+          bedroomFanOn = true;
+          setRelay(RELAY_BEDROOM_FAN, true);
+        } else if (lastTemp <= fanOffTemp && bedroomFanOn) {
+          bedroomFanOn = false;
+          setRelay(RELAY_BEDROOM_FAN, false);
+        }
+      }
     }
   }
   sendJson(200, "{\"ok\":true,\"target_temp\":" + String(targetFanOnTemp, 1) + "}");
