@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,13 +7,19 @@ import {
   TextInput,
   TouchableOpacity,
   StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather } from '@expo/vector-icons';
 import { colors, fontSize, spacing, radius, fontFamily } from '../theme';
 import { useHomeStore } from '../store/useHomeStore';
-import { discoverDevice, setManualIp } from '../api/esp32';
+import { reconnect, setManualIp, setMode as apiSetMode } from '../api/esp32';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import type { RootStackParamList } from '../navigation/RootNavigator';
 import TopBar from '../components/TopBar';
+
+type Nav = NativeStackNavigationProp<RootStackParamList>;
 
 function SectionCard({
   icon,
@@ -53,45 +59,49 @@ const sc = StyleSheet.create({
   },
 });
 
-function RowItem({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <View style={ri.row}>
-      <Text style={ri.label}>{label}</Text>
-      {children}
-    </View>
-  );
+function formatTime(ts: number) {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
-const ri = StyleSheet.create({
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  label: {
-    color: colors.textSecondary,
-    fontFamily: fontFamily.medium,
-    fontSize: fontSize.sm,
-  },
-});
-
 export default function SettingsScreen() {
-  const esp32Ip = useHomeStore((s) => s.esp32Ip);
+  const navigation = useNavigation<Nav>();
+  const esp32Ip    = useHomeStore((s) => s.esp32Ip);
   const isConnected = useHomeStore((s) => s.isConnected);
-  const setEsp32Ip = useHomeStore((s) => s.setEsp32Ip);
+  const lastUpdated = useHomeStore((s) => s.lastUpdated);
+  const setEsp32Ip  = useHomeStore((s) => s.setEsp32Ip);
   const defaultMode = useHomeStore((s) => s.defaultMode);
   const setDefaultMode = useHomeStore((s) => s.setDefaultMode);
 
   const [ipDraft, setIpDraft] = useState(esp32Ip);
   const [modeOpen, setModeOpen] = useState(false);
+  const [testing, setTesting]   = useState(false);
+  const [testResult, setTestResult] = useState<'success' | 'fail' | null>(null);
 
-  const saveIp = async () => {
+  const handleTestConnect = useCallback(async () => {
+    setTesting(true);
+    setTestResult(null);
+
     const ip = ipDraft.trim();
     setEsp32Ip(ip);
-    if (ip) {
-      setManualIp(ip);
-      await discoverDevice();
-    }
+    setManualIp(ip);
+
+    const found = await reconnect();
+    setTestResult(found ? 'success' : 'fail');
+    setTesting(false);
+  }, [ipDraft]);
+
+  const handleIpChange = (v: string) => {
+    setIpDraft(v);
+    setTestResult(null);
+  };
+
+  const handleModeSelect = async (m: 'auto' | 'manual') => {
+    setDefaultMode(m);
+    useHomeStore.getState().setMode(m);
+    setModeOpen(false);
+    // Transmit updated mode directly to the ESP32 controller
+    await apiSetMode(m);
   };
 
   return (
@@ -109,36 +119,126 @@ export default function SettingsScreen() {
           <Text style={styles.pageSubtitle}>Manage your system configuration and preferences.</Text>
         </View>
 
-        {/* Connection */}
+        {/* ── 1. Setup & Connection Guide Link (Prominent Top Position) ── */}
+        <TouchableOpacity
+          style={styles.guideLinkBtn}
+          onPress={() => navigation.navigate('SetupGuide')}
+          activeOpacity={0.8}
+        >
+          <View style={styles.guideLinkLeft}>
+            <View style={styles.guideLinkIcon}>
+              <Feather name="book-open" size={17} color={colors.amber} />
+            </View>
+            <View style={styles.guideLinkTextCol}>
+              <Text style={styles.guideLinkTitle}>How to Connect &amp; Setup</Text>
+              <Text style={styles.guideLinkSub}>Step-by-step controller setup guide</Text>
+            </View>
+          </View>
+          <Feather name="chevron-right" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+
+        {/* ── 2. Connection Section ── */}
         <SectionCard icon="wifi" title="Connection">
+
+          {/* Live status banner */}
+          <View style={[styles.statusBanner, isConnected ? styles.statusBannerOn : styles.statusBannerOff]}>
+            <View style={styles.statusBannerLeft}>
+              <View style={[styles.statusPulse, isConnected ? styles.statusPulseOn : styles.statusPulseOff]} />
+              <View>
+                <Text style={[styles.statusBannerTitle, { color: isConnected ? colors.success : '#F87171' }]}>
+                  {isConnected ? 'Connected' : 'Not connected'}
+                </Text>
+                {isConnected && lastUpdated > 0 && (
+                  <Text style={styles.statusBannerSub}>
+                    Last update at {formatTime(lastUpdated)}
+                  </Text>
+                )}
+                {!isConnected && (
+                  <Text style={styles.statusBannerSub}>
+                    Device not reachable — tap Test &amp; Connect below
+                  </Text>
+                )}
+              </View>
+            </View>
+            <Feather
+              name={isConnected ? 'check-circle' : 'wifi-off'}
+              size={20}
+              color={isConnected ? colors.success : '#F87171'}
+            />
+          </View>
+
+          {/* IP input */}
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>ESP32 IP Address</Text>
+            <Text style={styles.inputLabel}>Manual IP Address</Text>
             <TextInput
-              style={styles.input}
+              style={[
+                styles.input,
+                testResult === 'success' && styles.inputSuccess,
+                testResult === 'fail'    && styles.inputFail,
+              ]}
               value={ipDraft}
-              onChangeText={setIpDraft}
-              onBlur={saveIp}
-              onSubmitEditing={saveIp}
+              onChangeText={handleIpChange}
               placeholder="e.g. 192.168.1.42"
               placeholderTextColor={colors.textMuted}
               keyboardType="numeric"
               returnKeyType="done"
+              onSubmitEditing={handleTestConnect}
             />
+            <Text style={styles.inputHint}>
+              Leave blank to use automatic discovery ({'\u2060'}
+              <Text style={styles.inputHintMono}>homely-smarthome.local</Text>
+              {'\u2060'}) — enter an IP only if that fails.
+            </Text>
           </View>
-          <RowItem label="Status">
-            <View style={styles.statusRow}>
-              <View style={[styles.statusDot, isConnected && styles.statusDotOn]} />
-              <Text style={[styles.statusText, isConnected ? styles.statusTextOn : styles.statusTextOff]}>
-                {isConnected ? 'Connected' : 'Disconnected'}
+
+          {/* Test result pill */}
+          {testResult !== null && (
+            <View style={[
+              styles.testResultPill,
+              testResult === 'success' ? styles.testResultSuccess : styles.testResultFail,
+            ]}>
+              <Feather
+                name={testResult === 'success' ? 'check' : 'x'}
+                size={13}
+                color={testResult === 'success' ? colors.success : '#F87171'}
+              />
+              <Text style={[
+                styles.testResultText,
+                { color: testResult === 'success' ? colors.success : '#F87171' },
+              ]}>
+                {testResult === 'success'
+                  ? 'Device found and connected'
+                  : 'Could not reach device — check IP or Wi-Fi'}
               </Text>
             </View>
-          </RowItem>
+          )}
+
+          {/* Test & Connect button */}
+          <TouchableOpacity
+            style={[styles.connectBtn, testing && styles.connectBtnLoading]}
+            onPress={handleTestConnect}
+            activeOpacity={0.8}
+            disabled={testing}
+          >
+            {testing ? (
+              <>
+                <ActivityIndicator size="small" color={colors.text} />
+                <Text style={styles.connectBtnText}>Searching…</Text>
+              </>
+            ) : (
+              <>
+                <Feather name="refresh-cw" size={15} color={colors.text} />
+                <Text style={styles.connectBtnText}>Test &amp; Connect</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
         </SectionCard>
 
-        {/* Preferences */}
+        {/* ── 3. Preferences Section ── */}
         <SectionCard icon="sliders" title="Preferences">
           <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Default Mode on Launch</Text>
+            <Text style={styles.inputLabel}>System Mode</Text>
             <TouchableOpacity
               style={styles.dropdown}
               onPress={() => setModeOpen((o) => !o)}
@@ -151,17 +251,14 @@ export default function SettingsScreen() {
             </TouchableOpacity>
             {modeOpen && (
               <View style={styles.dropdownMenu}>
-                {(['auto', 'manual'] as const).map((m) => (
+                {(['manual', 'auto'] as const).map((m) => (
                   <TouchableOpacity
                     key={m}
                     style={[
                       styles.dropdownOption,
                       defaultMode === m && styles.dropdownOptionActive,
                     ]}
-                    onPress={() => {
-                      setDefaultMode(m);
-                      setModeOpen(false);
-                    }}
+                    onPress={() => handleModeSelect(m)}
                     activeOpacity={0.75}
                   >
                     <Text
@@ -170,26 +267,13 @@ export default function SettingsScreen() {
                         defaultMode === m && styles.dropdownOptionTextActive,
                       ]}
                     >
-                      {m === 'auto' ? 'Auto' : 'Manual'}
+                      {m === 'auto' ? 'Auto (Sensor automation)' : 'Manual (Direct app control)'}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             )}
           </View>
-        </SectionCard>
-
-        {/* About */}
-        <SectionCard icon="info" title="About">
-          <RowItem label="Version">
-            <View style={styles.versionBadge}>
-              <Text style={styles.versionText}>v0.8.2-beta</Text>
-            </View>
-          </RowItem>
-          <TouchableOpacity style={styles.logsBtn} activeOpacity={0.8}>
-            <Feather name="terminal" size={15} color={colors.textSecondary} />
-            <Text style={styles.logsBtnText}>View System Logs</Text>
-          </TouchableOpacity>
         </SectionCard>
 
         <View style={{ height: 20 }} />
@@ -215,6 +299,80 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
   },
 
+  // Setup Guide Link Card
+  guideLinkBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(245,158,11,0.08)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(245,158,11,0.3)',
+    borderRadius: radius.xl,
+    padding: spacing.lg,
+  },
+  guideLinkLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    flex: 1,
+  },
+  guideLinkIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(245,158,11,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  guideLinkTextCol: {
+    flex: 1,
+    gap: 2,
+  },
+  guideLinkTitle: {
+    color: colors.text,
+    fontFamily: fontFamily.bold,
+    fontSize: fontSize.base,
+  },
+  guideLinkSub: {
+    color: colors.textMuted,
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.xs,
+  },
+
+  // Status banner
+  statusBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  statusBannerOn: {
+    backgroundColor: 'rgba(16,185,129,0.08)',
+    borderColor: 'rgba(16,185,129,0.25)',
+  },
+  statusBannerOff: {
+    backgroundColor: 'rgba(248,113,113,0.08)',
+    borderColor: 'rgba(248,113,113,0.25)',
+  },
+  statusBannerLeft: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, flex: 1 },
+  statusPulse: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+  statusPulseOn: { backgroundColor: colors.success },
+  statusPulseOff: { backgroundColor: '#F87171' },
+  statusBannerTitle: {
+    fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+  },
+  statusBannerSub: {
+    color: colors.textMuted,
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.xs,
+    marginTop: 1,
+  },
+
+  // IP input
   inputGroup: { gap: spacing.sm },
   inputLabel: {
     color: colors.textMuted,
@@ -232,28 +390,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
   },
+  inputSuccess: { borderColor: 'rgba(16,185,129,0.5)' },
+  inputFail:    { borderColor: 'rgba(248,113,113,0.5)' },
+  inputHint: {
+    color: colors.textMuted,
+    fontFamily: fontFamily.regular,
+    fontSize: fontSize.xs,
+    lineHeight: 17,
+  },
+  inputHintMono: {
+    fontFamily: fontFamily.medium,
+    color: colors.textSecondary,
+  },
 
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: colors.textMuted,
+  // Test result pill
+  testResultPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    borderWidth: 1,
+    borderRadius: radius.pill,
+    paddingHorizontal: spacing.md,
+    paddingVertical: 7,
+    alignSelf: 'flex-start',
   },
-  statusDotOn: {
-    backgroundColor: colors.success,
-    shadowColor: colors.success,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
+  testResultSuccess: {
+    backgroundColor: 'rgba(16,185,129,0.1)',
+    borderColor: 'rgba(16,185,129,0.3)',
   },
-  statusText: {
+  testResultFail: {
+    backgroundColor: 'rgba(248,113,113,0.1)',
+    borderColor: 'rgba(248,113,113,0.3)',
+  },
+  testResultText: {
+    fontFamily: fontFamily.medium,
+    fontSize: fontSize.xs,
+  },
+
+  // Connect button
+  connectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.bgInput,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: radius.md,
+    paddingVertical: spacing.lg,
+  },
+  connectBtnLoading: { opacity: 0.6 },
+  connectBtnText: {
+    color: colors.text,
     fontFamily: fontFamily.semibold,
     fontSize: fontSize.sm,
   },
-  statusTextOn: { color: colors.success },
-  statusTextOff: { color: colors.textMuted },
 
+  // Dropdown
   dropdown: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -292,37 +485,5 @@ const styles = StyleSheet.create({
   dropdownOptionTextActive: {
     color: colors.primaryLight,
     fontFamily: fontFamily.bold,
-  },
-
-  versionBadge: {
-    backgroundColor: colors.bgInput,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.sm,
-    paddingHorizontal: spacing.md,
-    paddingVertical: 5,
-  },
-  versionText: {
-    color: colors.textSecondary,
-    fontFamily: fontFamily.medium,
-    fontSize: fontSize.sm,
-    fontVariant: ['tabular-nums'],
-  },
-
-  logsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.bgInput,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingVertical: spacing.lg,
-  },
-  logsBtnText: {
-    color: colors.textSecondary,
-    fontFamily: fontFamily.medium,
-    fontSize: fontSize.sm,
   },
 });

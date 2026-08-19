@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export type RoomId = 'living' | 'bedroom' | 'porch';
 export type Mode = 'auto' | 'manual';
@@ -63,210 +65,223 @@ interface HomeState {
   setEsp32Ip: (ip: string) => void;
   setConnected: (connected: boolean) => void;
   addLogEntry: (message: string, subtitle: string, color: string, roomId?: RoomId) => void;
+  clearActivityLog: () => void;
 }
 
-let logIdCounter = 0;
+export const useHomeStore = create<HomeState>()(
+  persist(
+    (set, get) => ({
+      mode: 'manual',
+      defaultMode: 'manual',
 
-export const useHomeStore = create<HomeState>((set, get) => ({
-  mode: 'auto',
-  defaultMode: 'auto',
+      rooms: {
+        living: {
+          id: 'living',
+          name: 'Living Room',
+          subtitle: 'Motion-activated lighting',
+          icon: 'tv',
+          isOn: false,
+          mode: 'auto',
+          relayChannel: 'CH2',
+          ledCount: 3,
+        },
+        bedroom: {
+          id: 'bedroom',
+          name: 'Bedroom',
+          subtitle: 'Climate controlled',
+          icon: 'moon',
+          isOn: false,
+          fanOn: false,
+          fanSpeed: 'Off',
+          targetTemp: 28.0,
+          mode: 'auto',
+          temperature: 0,
+          humidity: 0,
+          relayChannel: 'CH3 / CH4',
+          ledCount: 1,
+        },
+        porch: {
+          id: 'porch',
+          name: 'Porch',
+          subtitle: 'Manual control',
+          icon: 'sun',
+          isOn: false,
+          mode: 'manual',
+          relayChannel: 'CH1',
+          ledCount: 1,
+        },
+      },
 
-  rooms: {
-    living: {
-      id: 'living',
-      name: 'Living Room',
-      subtitle: 'PIR Motion • 3 LEDs Ceiling Wash',
-      icon: 'tv',
-      isOn: false,
-      mode: 'auto',
-      relayChannel: 'CH2',
-      ledCount: 3,
-    },
-    bedroom: {
-      id: 'bedroom',
-      name: 'Bedroom',
-      subtitle: 'Master Suite • 1 LED + Fan',
-      icon: 'moon',
-      isOn: false,
-      fanOn: false,
-      fanSpeed: 'Off',
-      targetTemp: 28.0, // matches firmware FAN_ON_TEMP
-      mode: 'auto',
       temperature: 0,
       humidity: 0,
-      relayChannel: 'CH3 / CH4',
-      ledCount: 1,
-    },
-    porch: {
-      id: 'porch',
-      name: 'Porch',
-      subtitle: 'Manual Only • 1 LED Sconce',
-      icon: 'sun',
-      isOn: false,
-      mode: 'manual',
-      relayChannel: 'CH1',
-      ledCount: 1,
-    },
-  },
+      lastUpdated: 0,
+      motionDetected: false,
+      lastMotion: null,
+      esp32Ip: '',
+      isConnected: false,
+      activityLog: [],
 
-  temperature: 0,
-  humidity: 0,
-  lastUpdated: 0,
-  motionDetected: false,
-  lastMotion: null,
-  esp32Ip: '',
-  isConnected: false,
-  activityLog: [],
-
-  // With log entry (user action)
-  setMode: (mode) => {
-    set({ mode });
-    get().addLogEntry(
-      mode === 'auto' ? 'System switched to Auto' : 'System switched to Manual',
-      mode === 'auto' ? 'PIR controls Living, DHT11 controls Fan' : 'Direct app override',
-      mode === 'auto' ? '#3B82F6' : '#F59E0B'
-    );
-  },
-
-  // Silent (poll sync, no log spam)
-  setModeSilent: (mode) => set({ mode }),
-
-  setDefaultMode: (defaultMode) => set({ defaultMode }),
-
-  toggleRoom: (roomId) => {
-    const state = get();
-    const room = state.rooms[roomId];
-    const newIsOn = !room.isOn;
-    set({
-      rooms: {
-        ...state.rooms,
-        [roomId]: { ...room, isOn: newIsOn },
+      setMode: (mode) => {
+        set({ mode });
+        get().addLogEntry(
+          mode === 'auto' ? 'System switched to Auto' : 'System switched to Manual',
+          mode === 'auto' ? 'Sensors handle lighting & fan' : 'Direct app override',
+          mode === 'auto' ? '#3B82F6' : '#F59E0B'
+        );
       },
-    });
-    get().addLogEntry(
-      `${room.name} light ${newIsOn ? 'ON' : 'OFF'}`,
-      `Relay ${room.relayChannel.split(' ')[0]} • Manual override`,
-      newIsOn ? '#10B981' : 'rgba(255,255,255,0.4)',
-      roomId
-    );
-  },
 
-  setRoomState: (roomId, isOn) => {
-    const state = get();
-    const room = state.rooms[roomId];
-    if (room.isOn === isOn) return; // no change, skip
-    set({
-      rooms: {
-        ...state.rooms,
-        [roomId]: { ...room, isOn },
+      setModeSilent: (mode) => set({ mode }),
+
+      setDefaultMode: (defaultMode) => set({ defaultMode }),
+
+      toggleRoom: (roomId) => {
+        const state = get();
+        const room = state.rooms[roomId];
+        const newIsOn = !room.isOn;
+        set({
+          rooms: {
+            ...state.rooms,
+            [roomId]: { ...room, isOn: newIsOn },
+          },
+        });
+        get().addLogEntry(
+          `${room.name} light ${newIsOn ? 'ON' : 'OFF'}`,
+          'Manual override',
+          newIsOn ? '#10B981' : 'rgba(255,255,255,0.4)',
+          roomId
+        );
       },
-    });
-  },
 
-  setBedroomLight: (on) => {
-    const state = get();
-    const bedroom = state.rooms.bedroom;
-    if (bedroom.isOn === on) return;
-    set({
-      rooms: {
-        ...state.rooms,
-        bedroom: { ...bedroom, isOn: on },
+      setRoomState: (roomId, isOn) => {
+        const state = get();
+        const room = state.rooms[roomId];
+        if (room.isOn === isOn) return;
+        set({
+          rooms: {
+            ...state.rooms,
+            [roomId]: { ...room, isOn },
+          },
+        });
       },
-    });
-  },
 
-  setBedroomFan: (fanOn, fanSpeed) => {
-    const state = get();
-    const bedroom = state.rooms.bedroom;
-    const speed = fanSpeed ?? (fanOn ? 'Low' : 'Off');
-    set({
-      rooms: {
-        ...state.rooms,
-        bedroom: { ...bedroom, fanOn, fanSpeed: speed },
+      setBedroomLight: (on) => {
+        const state = get();
+        const bedroom = state.rooms.bedroom;
+        if (bedroom.isOn === on) return;
+        set({
+          rooms: {
+            ...state.rooms,
+            bedroom: { ...bedroom, isOn: on },
+          },
+        });
       },
-    });
-    get().addLogEntry(
-      `Bedroom Fan ${fanOn ? 'turned ON' : 'turned OFF'}`,
-      fanOn ? `Relay CH4 • Speed ${speed}` : 'Relay CH4 • Stopped',
-      fanOn ? '#38BDF8' : 'rgba(255,255,255,0.4)',
-      'bedroom'
-    );
-  },
 
-  setBedroomFanSilent: (fanOn) => {
-    const state = get();
-    const bedroom = state.rooms.bedroom;
-    if (bedroom.fanOn === fanOn) return;
-    set({
-      rooms: {
-        ...state.rooms,
-        bedroom: {
-          ...bedroom,
-          fanOn,
-          fanSpeed: fanOn ? 'Low' : 'Off',
-        },
+      setBedroomFan: (fanOn, fanSpeed) => {
+        const state = get();
+        const bedroom = state.rooms.bedroom;
+        const speed = fanSpeed ?? (fanOn ? 'Low' : 'Off');
+        set({
+          rooms: {
+            ...state.rooms,
+            bedroom: { ...bedroom, fanOn, fanSpeed: speed },
+          },
+        });
+        get().addLogEntry(
+          `Bedroom Fan ${fanOn ? 'turned ON' : 'turned OFF'}`,
+          fanOn ? `Speed: ${speed}` : 'Fan stopped',
+          fanOn ? '#38BDF8' : 'rgba(255,255,255,0.4)',
+          'bedroom'
+        );
       },
-    });
-  },
 
-  setTargetTemp: (targetTemp) => {
-    const state = get();
-    const bedroom = state.rooms.bedroom;
-    set({
-      rooms: {
-        ...state.rooms,
-        bedroom: { ...bedroom, targetTemp },
+      setBedroomFanSilent: (fanOn) => {
+        const state = get();
+        const bedroom = state.rooms.bedroom;
+        if (bedroom.fanOn === fanOn) return;
+        set({
+          rooms: {
+            ...state.rooms,
+            bedroom: {
+              ...bedroom,
+              fanOn,
+              fanSpeed: fanOn ? 'Low' : 'Off',
+            },
+          },
+        });
       },
-    });
-  },
 
-  setRoomMode: (roomId, mode) => {
-    const state = get();
-    const room = state.rooms[roomId];
-    set({
-      rooms: {
-        ...state.rooms,
-        [roomId]: { ...room, mode },
+      setTargetTemp: (targetTemp) => {
+        const state = get();
+        const bedroom = state.rooms.bedroom;
+        set({
+          rooms: {
+            ...state.rooms,
+            bedroom: { ...bedroom, targetTemp },
+          },
+        });
       },
-    });
-  },
 
-  setSensors: (temperature, humidity) =>
-    set((state) => ({
-      temperature,
-      humidity,
-      lastUpdated: Date.now(),
-      rooms: {
-        ...state.rooms,
-        bedroom: {
-          ...state.rooms.bedroom,
+      setRoomMode: (roomId, mode) => {
+        const state = get();
+        const room = state.rooms[roomId];
+        set({
+          rooms: {
+            ...state.rooms,
+            [roomId]: { ...room, mode },
+          },
+        });
+      },
+
+      setSensors: (temperature, humidity) =>
+        set((state) => ({
           temperature,
           humidity,
-        },
+          lastUpdated: Date.now(),
+          rooms: {
+            ...state.rooms,
+            bedroom: {
+              ...state.rooms.bedroom,
+              temperature,
+              humidity,
+            },
+          },
+        })),
+
+      setMotionDetected: (motionDetected) =>
+        set({
+          motionDetected,
+          lastMotion: motionDetected ? Date.now() : get().lastMotion,
+        }),
+
+      setEsp32Ip: (esp32Ip) => set({ esp32Ip }),
+
+      setConnected: (isConnected) => set({ isConnected }),
+
+      addLogEntry: (message, subtitle, color, roomId) => {
+        const entry: ActivityEntry = {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          message,
+          subtitle,
+          color,
+          timestamp: Date.now(),
+          roomId,
+        };
+        set((state) => ({
+          activityLog: [entry, ...state.activityLog].slice(0, 200),
+        }));
       },
-    })),
 
-  setMotionDetected: (motionDetected) =>
-    set({
-      motionDetected,
-      lastMotion: motionDetected ? Date.now() : get().lastMotion,
+      clearActivityLog: () => set({ activityLog: [] }),
     }),
-
-  setEsp32Ip: (esp32Ip) => set({ esp32Ip }),
-
-  setConnected: (isConnected) => set({ isConnected }),
-
-  addLogEntry: (message, subtitle, color, roomId) => {
-    const entry: ActivityEntry = {
-      id: String(++logIdCounter),
-      message,
-      subtitle,
-      color,
-      timestamp: Date.now(),
-      roomId,
-    };
-    set((state) => ({
-      activityLog: [entry, ...state.activityLog].slice(0, 100),
-    }));
-  },
-}));
+    {
+      name: 'homely-smart-home-storage',
+      storage: createJSONStorage(() => AsyncStorage),
+      // Persist activityLog, esp32Ip, and defaultMode across app restarts
+      partialize: (state) => ({
+        activityLog: state.activityLog,
+        esp32Ip: state.esp32Ip,
+        defaultMode: state.defaultMode,
+      }),
+    }
+  )
+);

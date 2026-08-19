@@ -26,6 +26,14 @@ const ROOM_BG: Record<RoomId, any> = {
   porch: require('../../assets/porch bg image.jpg'),
 };
 
+// How far to shift each image downward so the room subject centres in the card.
+// Positive value moves the image down (revealing more of the lower portion).
+const ROOM_IMG_OFFSET: Record<RoomId, number> = {
+  living:  -40,  // sofa + fireplace — shift up slightly from centre
+  bedroom: -60,  // bed + lamp — mid-lower subject
+  porch:   -50,  // wall lamp + seating — mid-lower
+};
+
 const ROOM_ORDER: RoomId[] = ['living', 'bedroom', 'porch'];
 
 const ROOM_ICON: Record<RoomId, keyof typeof Feather.glyphMap> = {
@@ -53,7 +61,11 @@ function RoomCard({ roomId }: { roomId: RoomId }) {
       onPress={() => navigation.navigate('RoomDetail', { roomId })}
       activeOpacity={0.85}
     >
-      <Image source={ROOM_BG[roomId]} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      <Image
+        source={ROOM_BG[roomId]}
+        style={[styles.cardImage, { top: ROOM_IMG_OFFSET[roomId] }]}
+        resizeMode="cover"
+      />
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.85)']}
         style={StyleSheet.absoluteFill}
@@ -75,10 +87,7 @@ function RoomCard({ roomId }: { roomId: RoomId }) {
 
       {/* Bottom */}
       <View style={styles.cardBottom}>
-        <View style={styles.relayBadge}>
-          <Text style={styles.relayBadgeText}>RELAY {room.relayChannel}</Text>
-        </View>
-        <Text style={styles.roomName}>{room.name}</Text>
+<Text style={styles.roomName}>{room.name}</Text>
         <Text style={styles.roomSubtitle}>{room.subtitle}</Text>
         <View style={styles.modeRow}>
           <Feather name={room.mode === 'auto' ? 'zap' : 'sliders'} size={12} color={accentColor} />
@@ -102,8 +111,8 @@ export default function RoomsScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
-          <Text style={styles.pageTitle}>Zones & Hardware</Text>
-          <Text style={styles.pageSubtitle}>4-Channel Relay allocation & Star-Topology Sensor Zones.</Text>
+          <Text style={styles.pageTitle}>My Home</Text>
+          <Text style={styles.pageSubtitle}>Tap a room to view and control its devices.</Text>
         </View>
 
         <View style={styles.grid}>
@@ -145,6 +154,13 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     justifyContent: 'space-between',
     padding: spacing.lg,
+  },
+  cardImage: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    // Height larger than card so vertical offset has room to pan
+    height: 340,
   },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   iconBadge: {

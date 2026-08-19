@@ -98,7 +98,7 @@ const pt = StyleSheet.create({
   textOn: { color: '#000', fontFamily: fontFamily.bold },
 });
 
-// ── Bedroom Specific Device Controls (Relay CH3 Light + Relay CH4 Fan) ──
+// ── Bedroom Specific Device Controls ──
 function BedroomControls({ accentColor }: { accentColor: string }) {
   const bedroom = useHomeStore((s) => s.rooms.bedroom);
   const { toggleRoom: toggleRoomApi, toggleBedroomFan } = useRoomToggle();
@@ -134,7 +134,7 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
             </View>
             <View style={mpc.textColumn}>
               <Text style={mpc.title} numberOfLines={1}>Bedroom Light</Text>
-              <Text style={mpc.subtitle} numberOfLines={2}>Relay CH3 • 1 LED • Manual Control</Text>
+              <Text style={mpc.subtitle} numberOfLines={2}>Always manual</Text>
             </View>
           </View>
           <View style={mpc.badge}>
@@ -157,7 +157,7 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
             </View>
             <View style={mpc.textColumn}>
               <Text style={mpc.title} numberOfLines={1}>Ceiling Fan</Text>
-              <Text style={mpc.subtitle} numberOfLines={2}>Relay CH4 • Temp-controlled via DHT11</Text>
+              <Text style={mpc.subtitle} numberOfLines={2}>Temperature-controlled automatically</Text>
             </View>
           </View>
           <TouchableOpacity
@@ -206,7 +206,7 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
   );
 }
 
-// ── Living Room Specific Controls (Relay CH2 with PIR Motion) ──
+// ── Living Room Specific Controls ──
 function LivingRoomControls({ accentColor }: { accentColor: string }) {
   const living = useHomeStore((s) => s.rooms.living);
   const { toggleRoom: toggleRoomApi } = useRoomToggle();
@@ -222,7 +222,7 @@ function LivingRoomControls({ accentColor }: { accentColor: string }) {
 
   return (
     <View style={{ gap: spacing.lg }}>
-      {/* Living Room Lighting Card (Relay CH2) */}
+      {/* Living Room Lighting Card */}
       <View style={[mpc.card, living.isOn && { borderColor: `${accentColor}66` }]}>
         <View style={mpc.topRow}>
           <View style={mpc.leftInfo}>
@@ -231,7 +231,7 @@ function LivingRoomControls({ accentColor }: { accentColor: string }) {
             </View>
             <View style={mpc.textColumn}>
               <Text style={mpc.title} numberOfLines={1}>Living Room Lighting</Text>
-              <Text style={mpc.subtitle} numberOfLines={2}>Relay CH2 • 3 LEDs Ceiling Wash</Text>
+              <Text style={mpc.subtitle} numberOfLines={2}>Motion-activated</Text>
             </View>
           </View>
           <TouchableOpacity
@@ -254,33 +254,22 @@ function LivingRoomControls({ accentColor }: { accentColor: string }) {
         />
       </View>
 
-      {/* PIR Sensor Info Card */}
+      {/* Motion Sensor Info Cards */}
       <View style={sic.row}>
         <View style={sic.card}>
           <View style={sic.top}>
             <Feather name="activity" size={15} color={motionDetected ? colors.success : colors.textMuted} />
             <View style={[sic.dot, { backgroundColor: motionDetected ? colors.success : colors.border }]} />
           </View>
-          <Text style={sic.value}>{motionDetected ? 'Motion Active' : 'No Motion'}</Text>
-          <Text style={sic.label}>Entrance PIR Sensor</Text>
-        </View>
-
-        <View style={sic.card}>
-          <View style={sic.top}>
-            <Feather name="shield" size={15} color={colors.primaryLight} />
-            <View style={[sic.badge, { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.3)' }]}>
-              <Text style={[sic.badgeText, { color: colors.primaryLight }]}>3 LEDs</Text>
-            </View>
-          </View>
-          <Text style={sic.value}>Parallel Load</Text>
-          <Text style={sic.label}>Ceiling Wash Setup</Text>
+          <Text style={sic.value}>{motionDetected ? 'Motion Detected' : 'No Motion'}</Text>
+          <Text style={sic.label}>Motion Sensor</Text>
         </View>
       </View>
     </View>
   );
 }
 
-// ── Porch Specific Controls (Relay CH1 Manual Only) ──
+// ── Porch Specific Controls ──
 function PorchControls({ accentColor }: { accentColor: string }) {
   const porch = useHomeStore((s) => s.rooms.porch);
   const { toggleRoom: toggleRoomApi } = useRoomToggle();
@@ -292,7 +281,7 @@ function PorchControls({ accentColor }: { accentColor: string }) {
 
   return (
     <View style={{ gap: spacing.lg }}>
-      {/* Porch Light Card (Relay CH1) */}
+      {/* Porch Light Card */}
       <View style={[mpc.card, porch.isOn && { borderColor: `${accentColor}66` }]}>
         <View style={mpc.topRow}>
           <View style={mpc.leftInfo}>
@@ -301,7 +290,7 @@ function PorchControls({ accentColor }: { accentColor: string }) {
             </View>
             <View style={mpc.textColumn}>
               <Text style={mpc.title} numberOfLines={1}>Porch Light</Text>
-              <Text style={mpc.subtitle} numberOfLines={2}>Relay CH1 • 1 LED Sconce</Text>
+              <Text style={mpc.subtitle} numberOfLines={2}>Porch exterior light</Text>
             </View>
           </View>
           <View style={mpc.badge}>
@@ -315,16 +304,6 @@ function PorchControls({ accentColor }: { accentColor: string }) {
         />
       </View>
 
-      {/* Topology explanation */}
-      <View style={sic.card}>
-        <View style={sic.top}>
-          <Feather name="info" size={14} color={colors.textMuted} />
-          <Text style={sic.badgeText}>NO OUTDOOR PIR</Text>
-        </View>
-        <Text style={[sic.label, { marginTop: 4, lineHeight: 18 }]}>
-          Outdoor PIR placement is omitted to prevent wind and thermal false triggers. Controlled via app or manual override.
-        </Text>
-      </View>
     </View>
   );
 }
@@ -643,7 +622,9 @@ export default function RoomDetailScreen() {
         <View style={styles.heroBottom}>
           <View style={styles.activeBadge}>
             <View style={[styles.activeDot, { backgroundColor: accentColor }]} />
-            <Text style={[styles.activeText, { color: accentColor }]}>RELAY {room.relayChannel}</Text>
+            <Text style={[styles.activeText, { color: accentColor }]}>
+              {room.mode === 'auto' ? 'AUTO' : 'MANUAL'}
+            </Text>
           </View>
           <Text style={styles.roomName}>{room.name}</Text>
           <View style={styles.roomSubRow}>
@@ -654,12 +635,12 @@ export default function RoomDetailScreen() {
           {roomId === 'bedroom' && (
             <View style={styles.tempRow}>
               <View>
-                <Text style={styles.tempLabel}>DHT11 AMBIENT TEMP</Text>
+                <Text style={styles.tempLabel}>BEDROOM TEMPERATURE</Text>
                 <Text style={styles.tempValue}>{temperature.toFixed(1)}°C</Text>
               </View>
               <View style={styles.dhtBadge}>
                 <Feather name="cpu" size={12} color={colors.success} />
-                <Text style={styles.dhtText}>DHT11 Active</Text>
+                <Text style={styles.dhtText}>Climate Sensor Active</Text>
               </View>
             </View>
           )}
@@ -672,7 +653,7 @@ export default function RoomDetailScreen() {
         contentContainerStyle={styles.bodyContent}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.sectionLabel}>Hardware Controls</Text>
+        <Text style={styles.sectionLabel}>Controls</Text>
 
         {roomId === 'bedroom' && <BedroomControls accentColor={accentColor} />}
         {roomId === 'living' && <LivingRoomControls accentColor={accentColor} />}

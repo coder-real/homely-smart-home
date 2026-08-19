@@ -40,6 +40,13 @@ const ROOM_COLOR: Record<RoomId, string> = {
   porch: colors.roomPorch,
 };
 
+// Per-room vertical image offset — brings the identifiable subject into frame
+const ROOM_IMG_OFFSET: Record<RoomId, number> = {
+  living:  -40,  // sofa + fireplace
+  bedroom: -60,  // bed + lamp
+  porch:   -50,  // wall lamp + seating
+};
+
 // ── Sensor Widget ────────────────────────────────────────────────
 function SensorWidget() {
   const temperature = useHomeStore((s) => s.temperature);
@@ -59,7 +66,7 @@ function SensorWidget() {
         <View>
           <View style={sw.headerTag}>
             <Feather name="cpu" size={11} color={colors.primaryLight} />
-            <Text style={sw.headerTagText}>DHT11 BEDROOM CLIMATE</Text>
+            <Text style={sw.headerTagText}>Bedroom Climate</Text>
           </View>
           <Text style={sw.tempValue}>
             {temperature.toFixed(1)}
@@ -75,7 +82,7 @@ function SensorWidget() {
           <View style={[sw.motionPill, motionDetected ? sw.motionPillActive : sw.motionPillIdle]}>
             <View style={[sw.motionDot, motionDetected && sw.motionDotActive]} />
             <Text style={[sw.motionText, motionDetected && sw.motionTextActive]}>
-              {motionDetected ? 'PIR MOTION' : 'PIR IDLE'}
+              {motionDetected ? 'Motion' : 'Idle'}
             </Text>
           </View>
           <View style={sw.iconBadge}>
@@ -231,7 +238,11 @@ function RoomCard({
       onPress={() => navigation.navigate('RoomDetail', { roomId })}
       activeOpacity={0.85}
     >
-      <Image source={ROOM_BG[roomId]} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      <Image
+        source={ROOM_BG[roomId]}
+        style={[rc.cardImage, { top: ROOM_IMG_OFFSET[roomId] }]}
+        resizeMode="cover"
+      />
       <LinearGradient
         colors={['transparent', 'rgba(0,0,0,0.85)']}
         style={StyleSheet.absoluteFill}
@@ -253,9 +264,6 @@ function RoomCard({
 
       {/* Bottom info */}
       <View style={rc.bottom}>
-        <View style={rc.relayTag}>
-          <Text style={rc.relayText}>RELAY {room.relayChannel}</Text>
-        </View>
         <Text style={rc.name}>{room.name}</Text>
         <Text style={rc.subtitle}>{room.subtitle}</Text>
 
@@ -290,6 +298,12 @@ const rc = StyleSheet.create({
     height: 200,
     justifyContent: 'space-between',
     padding: spacing.md,
+  },
+  cardImage: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 360,
   },
   cardLarge: {
     height: 220,
@@ -329,15 +343,6 @@ const rc = StyleSheet.create({
   stateTextOn: { color: '#000' },
   stateTextOff: { color: colors.textSecondary },
   bottom: { gap: 3 },
-  relayTag: {
-    alignSelf: 'flex-start',
-  },
-  relayText: {
-    color: colors.amber,
-    fontFamily: fontFamily.bold,
-    fontSize: 9,
-    letterSpacing: 1,
-  },
   name: {
     color: colors.text,
     fontFamily: fontFamily.bold,
@@ -486,8 +491,7 @@ export default function HomeScreen() {
 
         {/* Environments */}
         <View style={styles.section}>
-          <Text style={styles.sectionLabel}>Environments</Text>
-          {/* Living Room — main motion demo room with 3 LEDs */}
+          <Text style={styles.sectionLabel}>Rooms</Text>
           <RoomCard roomId="living" large />
           {/* 2-col grid */}
           <View style={styles.grid}>

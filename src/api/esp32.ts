@@ -2,81 +2,61 @@ import { useHomeStore } from '../store/useHomeStore';
 
 // ── Config ──
 const MDNS_HOST = 'homely-smarthome.local';
-const POLL_INTERVAL = 3000;
+const POLL_INTERVAL = 2500;       // ms between status polls
+const REQUEST_TIMEOUT = 2500;     // ms for HTTP operations
+
 let pollTimer: ReturnType<typeof setInterval> | null = null;
-let baseUrl: string | null = null;
+let activeBaseUrl: string | null = null;
+let isPollInProgress = false;
 
-// ── Network helpers ──
+// ── Helpers ──
 
-function getBaseUrl(): string {
-  if (baseUrl) return baseUrl;
+function getTargetUrl(): string {
+  if (activeBaseUrl) return activeBaseUrl;
   const store = useHomeStore.getState();
-  // Try mDNS first, fall back to manual IP
   return store.esp32Ip
     ? `http://${store.esp32Ip}`
     : `http://${MDNS_HOST}`;
 }
 
-async function fetchJson<T>(path: string, timeoutMs = 3000): Promise<T | null> {
+async function fetchWithTimeout<T>(url: string, timeoutMs = REQUEST_TIMEOUT): Promise<T | null> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(`${getBaseUrl()}${path}`, {
+    const res = await fetch(url, {
       signal: controller.signal,
+      headers: { Accept: 'application/json' },
     });
     clearTimeout(timer);
     if (!res.ok) return null;
-    return await res.json();
+    return (await res.json()) as T;
   } catch {
     return null;
   }
 }
 
-async function postJson(
-  path: string,
-  body: Record<string, unknown>,
-  timeoutMs = 3000
-): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(`${getBaseUrl()}${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
+// ── Consolidated Status Payload (Single HTTP Roundtrip) ──
 
-// ── Response types (match firmware exactly) ──
-
-export interface StatusResponse {
+export interface FullStatusResponse {
   mode: 'auto' | 'manual';
   porch: { on: boolean };
   living: { on: boolean; motion: boolean };
   bedroom_light: { on: boolean };
   bedroom_fan: { on: boolean };
+  temperature?: number;
+  humidity?: number;
 }
 
-export interface SensorResponse {
-  temperature: number;
-  humidity: number;
-}
+// ── API Functions ──
 
-// ── API calls ──
-
-export async function ping(): Promise<boolean> {
+/**
+ * Checks candidate URL without corrupting activeBaseUrl if it fails.
+ */
+export async function pingUrl(baseUrl: string): Promise<boolean> {
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 2000);
-    const res = await fetch(`${getBaseUrl()}/ping`, {
-      signal: controller.signal,
-    });
+    const res = await fetch(`${baseUrl}/ping`, { signal: controller.signal });
     clearTimeout(timer);
     return res.ok;
   } catch {
@@ -84,70 +64,151 @@ export async function ping(): Promise<boolean> {
   }
 }
 
-export async function fetchStatus(): Promise<StatusResponse | null> {
-  return fetchJson<StatusResponse>('/status');
+export async function ping(): Promise<boolean> {
+  return pingUrl(getTargetUrl());
 }
 
-export async function fetchSensors(): Promise<SensorResponse | null> {
-  return fetchJson<SensorResponse>('/sensors');
+export async function fetchFullStatus(): Promise<FullStatusResponse | null> {
+  return fetchWithTimeout<FullStatusResponse>(`${getTargetUrl()}/status`);
 }
 
 export async function setRelay(
   channel: 'porch' | 'living' | 'bedroom_light' | 'bedroom_fan',
   on: boolean
 ): Promise<boolean> {
-  return postJson(`/relay/${channel}`, { on });
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const res = await fetch(`${getTargetUrl()}/relay/${channel}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ on }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export async function setMode(mode: 'auto' | 'manual'): Promise<boolean> {
-  return postJson('/mode', { mode });
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const res = await fetch(`${getTargetUrl()}/mode`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
-// ── Polling ──
+export async function resetEsp32Wifi(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const res = await fetch(`${getTargetUrl()}/reset-wifi`, {
+      method: 'POST',
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// ── Device Discovery ──
+
+export async function discoverDevice(): Promise<boolean> {
+  const manualIp = useHomeStore.getState().esp32Ip.trim();
+
+  // 1. If manual IP is provided, test it first
+  if (manualIp) {
+    const ipUrl = `http://${manualIp}`;
+    if (await pingUrl(ipUrl)) {
+      activeBaseUrl = ipUrl;
+      return true;
+    }
+  }
+
+  // 2. Test mDNS hostname
+  const mdnsUrl = `http://${MDNS_HOST}`;
+  if (await pingUrl(mdnsUrl)) {
+    activeBaseUrl = mdnsUrl;
+    return true;
+  }
+
+  // 3. Fallback to manual IP if mDNS failed but IP exists
+  if (manualIp) {
+    activeBaseUrl = `http://${manualIp}`;
+  } else {
+    activeBaseUrl = mdnsUrl;
+  }
+
+  return false;
+}
+
+export function setManualIp(ip: string) {
+  const trimmed = ip.trim();
+  activeBaseUrl = trimmed ? `http://${trimmed}` : `http://${MDNS_HOST}`;
+}
+
+// ── Robust Polling (Single HTTP GET /status per cycle) ──
 
 export async function startPolling() {
   stopPolling();
 
   const poll = async () => {
-    const store = useHomeStore.getState();
-    const connected = await ping();
+    if (isPollInProgress) return; // Prevent request piling/overlap
+    isPollInProgress = true;
 
-    if (!connected) {
-      store.setConnected(false);
-      return;
-    }
+    try {
+      const store = useHomeStore.getState();
+      const data = await fetchFullStatus();
 
-    store.setConnected(true);
-
-    const [status, sensors] = await Promise.all([
-      fetchStatus(),
-      fetchSensors(),
-    ]);
-
-    if (status) {
-      // Sync mode
-      if (store.mode !== status.mode) {
-        // Don't trigger log entries on poll sync — only on user action
-        store.setModeSilent(status.mode);
+      if (!data) {
+        // One miss doesn't instantly flip to offline — verify before marking disconnected
+        store.setConnected(false);
+        // Try discovery in background to recover address if changed
+        discoverDevice();
+        return;
       }
 
-      // Sync room states
-      store.setRoomState('porch', status.porch.on);
-      store.setRoomState('living', status.living.on);
-      store.setMotionDetected(status.living.motion);
-      store.setBedroomLight(status.bedroom_light.on);
-      store.setBedroomFan(status.bedroom_fan.on);
-    }
+      // Success! Update connection status
+      if (!store.isConnected) {
+        store.setConnected(true);
+      }
 
-    if (sensors && sensors.temperature > 0) {
-      store.setSensors(sensors.temperature, sensors.humidity);
+      // Sync modes & room switches atomically
+      if (store.mode !== data.mode) {
+        store.setModeSilent(data.mode);
+      }
+      store.setRoomState('porch', data.porch.on);
+      store.setRoomState('living', data.living.on);
+      store.setMotionDetected(data.living.motion);
+      store.setBedroomLight(data.bedroom_light.on);
+      store.setBedroomFanSilent(data.bedroom_fan.on);
+
+      // Sync temperature & humidity
+      if (data.temperature !== undefined && data.humidity !== undefined) {
+        store.setSensors(data.temperature, data.humidity);
+      }
+    } finally {
+      isPollInProgress = false;
     }
   };
 
-  // First poll immediately
+  // Run initial poll
   await poll();
 
-  // Then every 3 seconds
+  // Start polling interval
   pollTimer = setInterval(poll, POLL_INTERVAL);
 }
 
@@ -156,32 +217,12 @@ export function stopPolling() {
     clearInterval(pollTimer);
     pollTimer = null;
   }
+  isPollInProgress = false;
 }
 
-// ── mDNS discovery ──
-
-export async function discoverDevice(): Promise<boolean> {
-  // Try mDNS hostname first
-  baseUrl = `http://${MDNS_HOST}`;
-  const mdnsOk = await ping();
-  if (mdnsOk) return true;
-
-  // Try manual IP if set
-  const ip = useHomeStore.getState().esp32Ip;
-  if (ip) {
-    baseUrl = `http://${ip}`;
-    const ipOk = await ping();
-    if (ipOk) return true;
-  }
-
-  baseUrl = null;
-  return false;
-}
-
-export function setManualIp(ip: string) {
-  if (ip) {
-    baseUrl = `http://${ip}`;
-  } else {
-    baseUrl = null; // fall back to mDNS
-  }
+export async function reconnect(): Promise<boolean> {
+  stopPolling();
+  const found = await discoverDevice();
+  startPolling();
+  return found;
 }
