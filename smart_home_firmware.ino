@@ -126,10 +126,16 @@ void updateStatusLeds() {
 }
 
 // ============================================================
-// Relay helpers (HIGH = ON, LOW = OFF)
+// Relay helpers
 // ============================================================
 void setRelay(int pin, bool on) {
-  digitalWrite(pin, on ? HIGH : LOW);
+  if (pin == RELAY_BEDROOM_FAN) {
+    // Fan relay is inverted (LOW = ON / spinning, HIGH = OFF / stopped)
+    digitalWrite(pin, on ? LOW : HIGH);
+  } else {
+    // Light relays (HIGH = ON / lit, LOW = OFF / dark)
+    digitalWrite(pin, on ? HIGH : LOW);
+  }
 }
 
 // ============================================================
