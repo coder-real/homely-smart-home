@@ -34,13 +34,16 @@ bool isWifiConnected = false;
 // ---- 7-LED Hardware Status Dashboard (Common Anode, Active-LOW) ----
 // Connect Common Positive (+) leg to ESP32 3.3V pin via a single 220Ω resistor.
 // Connect individual Ground (-) legs to these ESP32 GPIO pins:
-#define LED_WIFI      18   // LED 1: Wi-Fi Status (Solid = Online, Fast Blink = Connecting, Slow = Setup)
+#define LED_WIFI      18   // LED 1: Wi-Fi Status (Solid = Online, Running Wave = Connecting, Scanner = Setup)
 #define LED_MODE      19   // LED 2: System Mode (Auto = ON, Manual = OFF)
 #define LED_PORCH     21   // LED 3: Porch Light Relay State
 #define LED_LIVING    22   // LED 4: Living Room Light Relay State
 #define LED_BED_L     23   // LED 5: Bedroom Light Relay State
 #define LED_BED_F     27   // LED 6: Bedroom Fan Relay State
 #define LED_MOTION    13   // LED 7: PIR Motion Detected Indicator
+
+const int STATUS_LEDS[7] = { LED_WIFI, LED_MODE, LED_PORCH, LED_LIVING, LED_BED_L, LED_BED_F, LED_MOTION };
+const int NUM_STATUS_LEDS = 7;
 
 // GPIO 2 is the onboard LED - not used for user feedback (7-LED external board is used instead)
 
@@ -69,53 +72,105 @@ float targetFanOnTemp = 28.0;     // Default: synced from the app's Target Temp 
 const float FAN_OFF_HYSTERESIS = 2.0; // Fan turns off when temp drops 2°C below target
 
 // ============================================================
-// 7-LED Status Dashboard Manager (Common Anode: LOW = ON, HIGH = OFF)
+// 7-LED Status Dashboard & Animation System (Active-LOW: LOW=ON, HIGH=OFF)
 // ============================================================
+
+// Low-level helper: writes LOW to turn LED ON, HIGH to turn OFF
+inline void setLed(int pin, bool on) {
+  digitalWrite(pin, on ? LOW : HIGH);
+}
+
+// Low-level helper: set all 7 dashboard LEDs simultaneously
+inline void setAllLeds(bool on) {
+  for (int i = 0; i < NUM_STATUS_LEDS; i++) {
+    digitalWrite(STATUS_LEDS[i], on ? LOW : HIGH);
+  }
+}
+
+// 1. BOOTUP SELF-TEST (POST): Rapid forward & reverse sweep on initial power-on
+void playBootPostAnimation() {
+  for (int i = 0; i < NUM_STATUS_LEDS; i++) {
+    setAllLeds(false);
+    setLed(STATUS_LEDS[i], true);
+    delay(40);
+  }
+  for (int i = NUM_STATUS_LEDS - 1; i >= 0; i--) {
+    setAllLeds(false);
+    setLed(STATUS_LEDS[i], true);
+    delay(40);
+  }
+  // Double unison flash to confirm all 7 channels operational
+  setAllLeds(true);  delay(80);
+  setAllLeds(false); delay(80);
+  setAllLeds(true);  delay(80);
+  setAllLeds(false); delay(120);
+}
+
+// 2. WI-FI CONNECTED CELEBRATION: Cascade fill 1->7 + double pulse, then locks LED 1 solid
+void playConnectedAnimation() {
+  // Sequential cascade fill
+  for (int i = 0; i < NUM_STATUS_LEDS; i++) {
+    setLed(STATUS_LEDS[i], true);
+    delay(60);
+  }
+  delay(100);
+
+  // Double celebration strobe
+  for (int b = 0; b < 2; b++) {
+    setAllLeds(false);
+    delay(80);
+    setAllLeds(true);
+    delay(100);
+  }
+  delay(120);
+
+  // Settle to live telemetry state (LED 1 Wi-Fi stays locked ON)
+  setAllLeds(false);
+  setLed(LED_WIFI, true);
+  delay(100);
+}
+
+// 3. RUNTIME NON-BLOCKING DASHBOARD & ANIMATION ENGINE
 void updateStatusLeds() {
-  static unsigned long lastSlowBlink = 0;
-  static unsigned long lastFastBlink = 0;
-  static bool slowBlinkState = false;
-  static bool fastBlinkState = false;
   unsigned long now = millis();
 
-  // Non-blocking blink timers
-  if (now - lastSlowBlink >= 500) {
-    lastSlowBlink = now;
-    slowBlinkState = !slowBlinkState;
-  }
-  if (now - lastFastBlink >= 150) {
-    lastFastBlink = now;
-    fastBlinkState = !fastBlinkState;
-  }
-
-  // Helper for Common Anode: LOW = ON (gives path to ground), HIGH = OFF
-  auto setLed = [](int pin, bool on) {
-    digitalWrite(pin, on ? LOW : HIGH);
-  };
-
   if (inConfigMode) {
-    // 1. SETUP / AP MODE (Homely-SmartHome-Setup active):
-    // All 7 dashboard LEDs pulse slowly together
-    setLed(LED_WIFI,   slowBlinkState);
-    setLed(LED_MODE,   slowBlinkState);
-    setLed(LED_PORCH,  slowBlinkState);
-    setLed(LED_LIVING, slowBlinkState);
-    setLed(LED_BED_L,  slowBlinkState);
-    setLed(LED_BED_F,  slowBlinkState);
-    setLed(LED_MOTION, slowBlinkState);
+    // SETUP / AP MODE (Homely-SmartHome-Setup active):
+    // Smooth ping-pong / scanner bounce across all 7 LEDs (indicates waiting for pairing)
+    static unsigned long lastScannerStep = 0;
+    static int scannerIdx = 0;
+    static int scannerDir = 1;
+
+    if (now - lastScannerStep >= 90) {
+      lastScannerStep = now;
+      for (int i = 0; i < NUM_STATUS_LEDS; i++) {
+        setLed(STATUS_LEDS[i], i == scannerIdx);
+      }
+      scannerIdx += scannerDir;
+      if (scannerIdx >= NUM_STATUS_LEDS - 1) {
+        scannerIdx = NUM_STATUS_LEDS - 1;
+        scannerDir = -1;
+      } else if (scannerIdx <= 0) {
+        scannerIdx = 0;
+        scannerDir = 1;
+      }
+    }
   } else if (!isWifiConnected) {
-    // 2. CONNECTING / RECONNECTING TO WI-FI:
-    // Only Wi-Fi LED blinks fast, all other LEDs OFF
-    setLed(LED_WIFI,   fastBlinkState);
-    setLed(LED_MODE,   false);
-    setLed(LED_PORCH,  false);
-    setLed(LED_LIVING, false);
-    setLed(LED_BED_L,  false);
-    setLed(LED_BED_F,  false);
-    setLed(LED_MOTION, false);
+    // CONNECTING / RECONNECTING TO WI-FI:
+    // Full 7-LED forward chasing wave animation (1 -> 2 -> ... -> 7 -> 1)
+    static unsigned long lastChaseStep = 0;
+    static int chaseIdx = 0;
+
+    if (now - lastChaseStep >= 80) {
+      lastChaseStep = now;
+      chaseIdx = (chaseIdx + 1) % NUM_STATUS_LEDS;
+      for (int i = 0; i < NUM_STATUS_LEDS; i++) {
+        setLed(STATUS_LEDS[i], i == chaseIdx);
+      }
+    }
   } else {
-    // 3. ONLINE & RUNNING (Real-Time Live House Dashboard):
-    setLed(LED_WIFI,   true);                          // LED 1: Solid ON
+    // ONLINE & RUNNING (Real-Time Live House Dashboard):
+    setLed(LED_WIFI,   true);                          // LED 1: Solid ON (Wi-Fi online)
     setLed(LED_MODE,   systemMode == "auto");          // LED 2: ON in Auto, OFF in Manual
     setLed(LED_PORCH,  porchOn);                       // LED 3: Porch Light Relay State
     setLed(LED_LIVING, livingOn);                      // LED 4: Living Room Light Relay State
@@ -267,7 +322,12 @@ void handleTargetTemp() {
 
 void handleResetWifi() {
   sendJson(200, "{\"ok\":true,\"message\":\"Clearing WiFi credentials and restarting AP mode...\"}");
-  delay(1000);
+  // Reverse wipe: turn LEDs off from 7 down to 1
+  for (int i = NUM_STATUS_LEDS - 1; i >= 0; i--) {
+    setLed(STATUS_LEDS[i], false);
+    delay(80);
+  }
+  delay(500);
   preferences.begin("wifi-config", false);
   preferences.clear();
   preferences.end();
@@ -354,7 +414,15 @@ void handlePortalSave() {
 
     String res = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{background:#0E0E12;color:#FFF;font-family:sans-serif;text-align:center;padding:40px;}h2{color:#10B981;}</style></head><body><h2>Credentials Saved!</h2><p>Connecting to " + ssid + "...</p><p>You can now switch back to your home Wi-Fi and open the Homely app.</p></body></html>";
     server.send(200, "text/html", res);
-    delay(2000);
+
+    // Rapid 3-pulse save confirmation strobe
+    for (int i = 0; i < 3; i++) {
+      setAllLeds(true);
+      delay(100);
+      setAllLeds(false);
+      delay(100);
+    }
+    delay(600);
     ESP.restart();
   } else {
     server.send(400, "text/plain", "SSID cannot be empty");
@@ -396,14 +464,9 @@ void setup() {
   pinMode(RELAY_BEDROOM_FAN, OUTPUT);
 
   // 7-LED Dashboard Pins (Common Anode, Active-LOW)
-  pinMode(LED_WIFI, OUTPUT);
-  pinMode(LED_MODE, OUTPUT);
-  pinMode(LED_PORCH, OUTPUT);
-  pinMode(LED_LIVING, OUTPUT);
-  pinMode(LED_BED_L, OUTPUT);
-  pinMode(LED_BED_F, OUTPUT);
-  pinMode(LED_MOTION, OUTPUT);
-
+  for (int i = 0; i < NUM_STATUS_LEDS; i++) {
+    pinMode(STATUS_LEDS[i], OUTPUT);
+  }
 
   setRelay(RELAY_PORCH, false);
   setRelay(RELAY_LIVING, false);
@@ -411,13 +474,10 @@ void setup() {
   setRelay(RELAY_BEDROOM_FAN, false);
 
   // Initialize all LEDs to OFF (HIGH for Common Anode)
-  digitalWrite(LED_WIFI, HIGH);
-  digitalWrite(LED_MODE, HIGH);
-  digitalWrite(LED_PORCH, HIGH);
-  digitalWrite(LED_LIVING, HIGH);
-  digitalWrite(LED_BED_L, HIGH);
-  digitalWrite(LED_BED_F, HIGH);
-  digitalWrite(LED_MOTION, HIGH);
+  setAllLeds(false);
+
+  // Run hardware power-on self-test animation (LED 1 -> 7 -> 1 sweep)
+  playBootPostAnimation();
 
   dht.begin();
 
@@ -440,16 +500,16 @@ void setup() {
   WiFi.begin(savedSSID.c_str(), savedPass.c_str());
 
   unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 12000) {
-    delay(150);
-    Serial.print(".");
-    updateStatusLeds(); // Fast blink on Wi-Fi LED
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
+    delay(20);
+    updateStatusLeds(); // Animates the 7-LED chasing wave smoothly
   }
   Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
     isWifiConnected = true;
-    updateStatusLeds(); // Real-time live dashboard active
+    playConnectedAnimation(); // Cascades 1->7, double strobe, locks LED 1 solid
+    updateStatusLeds();       // Real-time live dashboard active
     Serial.print("Wi-Fi Connected! IP: ");
     Serial.println(WiFi.localIP());
 

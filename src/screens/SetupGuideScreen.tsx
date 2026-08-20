@@ -160,9 +160,10 @@ export default function SetupGuideScreen() {
               <View style={styles.ledTextCol}>
                 <Text style={styles.ledTitle}>LED 1 — Wi-Fi &amp; Connection</Text>
                 <Text style={styles.ledDesc}>
-                  • Solid ON: Connected to your home Wi-Fi and online{'\n'}
-                  • Fast Blinking: Connecting to network{'\n'}
-                  • Slow Pulsing (all LEDs): Setup Mode (hotspot active)
+                  • Solid ON: Connected to your home Wi-Fi &amp; online{'\n'}
+                  • 7-LED Running Wave: Connecting / reconnecting to Wi-Fi{'\n'}
+                  • 7-LED Ping-Pong Scanner: Setup AP Mode (hotspot active){'\n'}
+                  • 7-LED Cascade Fill: Connection success confirmation
                 </Text>
               </View>
             </View>
