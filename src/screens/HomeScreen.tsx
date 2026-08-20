@@ -47,7 +47,6 @@ const ROOM_IMG_OFFSET: Record<RoomId, number> = {
   porch:   -50,  // wall lamp + seating
 };
 
-// ── Sensor Widget ────────────────────────────────────────────────
 function SensorWidget() {
   const temperature = useHomeStore((s) => s.temperature);
   const humidity = useHomeStore((s) => s.humidity);
@@ -210,7 +209,6 @@ const sw = StyleSheet.create({
   },
 });
 
-// ── Room Card ────────────────────────────────────────────────────
 function RoomCard({
   roomId,
   large,
@@ -383,7 +381,6 @@ const rc = StyleSheet.create({
   toggleTextOn: { color: '#000', fontFamily: fontFamily.bold },
 });
 
-// ── Recent Activity Strip ────────────────────────────────────────
 function RecentActivityStrip() {
   const navigation = useNavigation<Nav>();
   const log = useHomeStore((s) => s.activityLog);
@@ -465,7 +462,6 @@ const ra = StyleSheet.create({
   },
 });
 
-// ── Home Screen ──────────────────────────────────────────────────
 export default function HomeScreen() {
   const now = new Date();
   const dayName = now.toLocaleDateString('en-US', { weekday: 'long' });

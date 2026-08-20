@@ -1,17 +1,14 @@
 import { useHomeStore } from '../store/useHomeStore';
 
-// ── Config ──
 const MDNS_HOST = 'homely-smarthome.local';
-const POLL_INTERVAL = 1500;       // ms between status polls
-const REQUEST_TIMEOUT = 3000;     // ms for HTTP operations
-const COMMAND_LOCK_MS = 3000;     // ms to suppress poll sync after a manual command
+const POLL_INTERVAL = 1500;
+const REQUEST_TIMEOUT = 3000;
+const COMMAND_LOCK_MS = 3000;
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let activeBaseUrl: string | null = null;
 let isPollInProgress = false;
-let lastCommandTime = 0;          // timestamp of most recent toggle/mode command
-
-// ── Helpers ──
+let lastCommandTime = 0;
 
 function getTargetUrl(): string {
   if (activeBaseUrl) return activeBaseUrl;
@@ -37,8 +34,6 @@ async function fetchWithTimeout<T>(url: string, timeoutMs = REQUEST_TIMEOUT): Pr
   }
 }
 
-// ── Consolidated Status Payload (Single HTTP Roundtrip) ──
-
 export interface FullStatusResponse {
   mode: 'auto' | 'manual';
   porch: { on: boolean };
@@ -49,11 +44,6 @@ export interface FullStatusResponse {
   humidity?: number;
 }
 
-// ── API Functions ──
-
-/**
- * Checks candidate URL without corrupting activeBaseUrl if it fails.
- */
 export async function pingUrl(baseUrl: string): Promise<boolean> {
   try {
     const controller = new AbortController();
@@ -88,7 +78,7 @@ export async function setRelay(
       signal: controller.signal,
     });
     clearTimeout(timer);
-    if (res.ok) lastCommandTime = Date.now(); // Lock poll sync for COMMAND_LOCK_MS
+    if (res.ok) lastCommandTime = Date.now();
     return res.ok;
   } catch {
     return false;
@@ -145,12 +135,9 @@ export async function resetEsp32Wifi(): Promise<boolean> {
   }
 }
 
-// ── Device Discovery ──
-
 export async function discoverDevice(): Promise<boolean> {
   const manualIp = useHomeStore.getState().esp32Ip.trim();
 
-  // 1. If manual IP is provided, test it first
   if (manualIp) {
     const ipUrl = `http://${manualIp}`;
     if (await pingUrl(ipUrl)) {
@@ -159,14 +146,12 @@ export async function discoverDevice(): Promise<boolean> {
     }
   }
 
-  // 2. Test mDNS hostname
   const mdnsUrl = `http://${MDNS_HOST}`;
   if (await pingUrl(mdnsUrl)) {
     activeBaseUrl = mdnsUrl;
     return true;
   }
 
-  // 3. Fallback to manual IP if mDNS failed but IP exists
   if (manualIp) {
     activeBaseUrl = `http://${manualIp}`;
   } else {
@@ -181,13 +166,11 @@ export function setManualIp(ip: string) {
   activeBaseUrl = trimmed ? `http://${trimmed}` : `http://${MDNS_HOST}`;
 }
 
-// ── Robust Polling (Single HTTP GET /status per cycle) ──
-
 export async function startPolling() {
   stopPolling();
 
   const poll = async () => {
-    if (isPollInProgress) return; // Prevent request piling/overlap
+    if (isPollInProgress) return;
     isPollInProgress = true;
 
     try {
@@ -195,30 +178,24 @@ export async function startPolling() {
       const data = await fetchFullStatus();
 
       if (!data) {
-        // One miss doesn't instantly flip to offline — verify before marking disconnected
         store.setConnected(false);
-        // Try discovery in background to recover address if changed
         discoverDevice();
         return;
       }
 
-      // Success! Update connection status
       if (!store.isConnected) {
         store.setConnected(true);
       }
 
-      // Always sync motion detection and environmental sensors in real time
       store.setMotionDetected(data.living.motion);
       if (data.temperature !== undefined && data.humidity !== undefined) {
         store.setSensors(data.temperature, data.humidity);
       }
 
-      // If a manual command was sent recently, skip overwriting the optimistic UI state.
-      // This prevents the poll from reverting a toggle the user just made.
+      // Skip sync if user just sent a command (prevents flicker)
       const isLocked = (Date.now() - lastCommandTime) < COMMAND_LOCK_MS;
       if (isLocked) return;
 
-      // Sync modes & room switches atomically
       if (store.mode !== data.mode) {
         store.setModeSilent(data.mode);
       }
@@ -231,10 +208,7 @@ export async function startPolling() {
     }
   };
 
-  // Run initial poll
   await poll();
-
-  // Start polling interval
   pollTimer = setInterval(poll, POLL_INTERVAL);
 }
 

@@ -34,7 +34,6 @@ const ROOM_COLOR: Record<RoomId, string> = {
   porch: colors.roomPorch,
 };
 
-// ── ON/OFF Pill Toggle ───────────────────────────────────────────
 function PillToggle({
   value,
   onChange,
@@ -98,7 +97,6 @@ const pt = StyleSheet.create({
   textOn: { color: '#000', fontFamily: fontFamily.bold },
 });
 
-// ── Bedroom Specific Device Controls ──
 function BedroomControls({ accentColor }: { accentColor: string }) {
   const bedroom = useHomeStore((s) => s.rooms.bedroom);
   const { toggleRoom: toggleRoomApi, toggleBedroomFan, updateTargetTemp } = useRoomToggle();
@@ -204,7 +202,6 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
   );
 }
 
-// ── Living Room Specific Controls ──
 function LivingRoomControls({ accentColor }: { accentColor: string }) {
   const living = useHomeStore((s) => s.rooms.living);
   const { toggleRoom: toggleRoomApi } = useRoomToggle();
@@ -261,7 +258,6 @@ function LivingRoomControls({ accentColor }: { accentColor: string }) {
   );
 }
 
-// ── Porch Specific Controls ──
 function PorchControls({ accentColor }: { accentColor: string }) {
   const porch = useHomeStore((s) => s.rooms.porch);
   const { toggleRoom: toggleRoomApi } = useRoomToggle();
@@ -473,7 +469,6 @@ const sic = StyleSheet.create({
   },
 });
 
-// ── Room Activity Log ─────────────────────────────────────────────
 function RoomActivityLog({ roomId }: { roomId: RoomId }) {
   const log = useHomeStore((s) => s.activityLog);
   const roomLog = log.filter((e) => !e.roomId || e.roomId === roomId).slice(0, 4);
@@ -569,7 +564,6 @@ const al = StyleSheet.create({
   },
 });
 
-// ── Room Detail Screen ───────────────────────────────────────────
 export default function RoomDetailScreen() {
   const navigation = useNavigation<Nav>();
   const route = useRoute<RouteT>();
