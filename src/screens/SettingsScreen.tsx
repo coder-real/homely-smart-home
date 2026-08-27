@@ -77,6 +77,18 @@ export default function SettingsScreen() {
   const [modeOpen, setModeOpen] = useState(false);
   const [testing, setTesting]   = useState(false);
   const [testResult, setTestResult] = useState<'success' | 'fail' | null>(null);
+  const [discovering, setDiscovering] = useState(false);
+
+  const handleAutoDiscover = useCallback(async () => {
+    setDiscovering(true);
+    setTestResult(null);
+    const found = await reconnect();
+    setTestResult(found ? 'success' : 'fail');
+    setDiscovering(false);
+    if (found) {
+      setIpDraft(useHomeStore.getState().esp32Ip);
+    }
+  }, []);
 
   const handleTestConnect = useCallback(async () => {
     setTesting(true);
@@ -155,7 +167,7 @@ export default function SettingsScreen() {
                 )}
                 {!isConnected && (
                   <Text style={styles.statusBannerSub}>
-                    Device not reachable — tap Test &amp; Connect below
+                    Tap "Auto-Discover" to find your device
                   </Text>
                 )}
               </View>
@@ -167,29 +179,25 @@ export default function SettingsScreen() {
             />
           </View>
 
-          {/* IP input */}
-          <View style={styles.inputGroup}>
-            <Text style={styles.inputLabel}>Manual IP Address</Text>
-            <TextInput
-              style={[
-                styles.input,
-                testResult === 'success' && styles.inputSuccess,
-                testResult === 'fail'    && styles.inputFail,
-              ]}
-              value={ipDraft}
-              onChangeText={handleIpChange}
-              placeholder="e.g. 192.168.1.42"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numeric"
-              returnKeyType="done"
-              onSubmitEditing={handleTestConnect}
-            />
-            <Text style={styles.inputHint}>
-              Leave blank to use automatic discovery ({'\u2060'}
-              <Text style={styles.inputHintMono}>homely-smarthome.local</Text>
-              {'\u2060'}) — enter an IP only if that fails.
-            </Text>
-          </View>
+          {/* Auto-Discover button */}
+          <TouchableOpacity
+            style={[styles.discoverBtn, discovering && styles.discoverBtnLoading]}
+            onPress={handleAutoDiscover}
+            activeOpacity={0.8}
+            disabled={discovering || testing}
+          >
+            {discovering ? (
+              <>
+                <ActivityIndicator size="small" color="#000" />
+                <Text style={styles.discoverBtnText}>Scanning network…</Text>
+              </>
+            ) : (
+              <>
+                <Feather name="search" size={15} color="#000" />
+                <Text style={styles.discoverBtnText}>Auto-Discover</Text>
+              </>
+            )}
+          </TouchableOpacity>
 
           {/* Test result pill */}
           {testResult !== null && (
@@ -207,28 +215,50 @@ export default function SettingsScreen() {
                 { color: testResult === 'success' ? colors.success : '#F87171' },
               ]}>
                 {testResult === 'success'
-                  ? 'Device found and connected'
-                  : 'Could not reach device — check IP or Wi-Fi'}
+                  ? `Connected${esp32Ip ? ` to ${esp32Ip}` : ''}`
+                  : 'Could not find device — check Wi-Fi'}
               </Text>
             </View>
           )}
 
-          {/* Test & Connect button */}
+          {/* Manual IP fallback (collapsible) */}
+          <View style={styles.inputGroup}>
+            <Text style={styles.inputLabel}>Manual IP (advanced)</Text>
+            <TextInput
+              style={[
+                styles.input,
+                testResult === 'success' && styles.inputSuccess,
+                testResult === 'fail'    && styles.inputFail,
+              ]}
+              value={ipDraft}
+              onChangeText={handleIpChange}
+              placeholder="e.g. 192.168.1.42"
+              placeholderTextColor={colors.textMuted}
+              keyboardType="numeric"
+              returnKeyType="done"
+              onSubmitEditing={handleTestConnect}
+            />
+            <Text style={styles.inputHint}>
+              Only needed if auto-discovery fails. Leave blank for automatic detection.
+            </Text>
+          </View>
+
+          {/* Manual connect button */}
           <TouchableOpacity
             style={[styles.connectBtn, testing && styles.connectBtnLoading]}
             onPress={handleTestConnect}
             activeOpacity={0.8}
-            disabled={testing}
+            disabled={testing || discovering}
           >
             {testing ? (
               <>
                 <ActivityIndicator size="small" color={colors.text} />
-                <Text style={styles.connectBtnText}>Searching…</Text>
+                <Text style={styles.connectBtnText}>Testing…</Text>
               </>
             ) : (
               <>
                 <Feather name="refresh-cw" size={15} color={colors.text} />
-                <Text style={styles.connectBtnText}>Test &amp; Connect</Text>
+                <Text style={styles.connectBtnText}>Connect to IP</Text>
               </>
             )}
           </TouchableOpacity>
@@ -443,6 +473,23 @@ const styles = StyleSheet.create({
   connectBtnText: {
     color: colors.text,
     fontFamily: fontFamily.semibold,
+    fontSize: fontSize.sm,
+  },
+
+  // Auto-Discover button
+  discoverBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.primaryLight,
+    borderRadius: radius.md,
+    paddingVertical: spacing.lg,
+  },
+  discoverBtnLoading: { opacity: 0.6 },
+  discoverBtnText: {
+    color: '#000',
+    fontFamily: fontFamily.bold,
     fontSize: fontSize.sm,
   },
 

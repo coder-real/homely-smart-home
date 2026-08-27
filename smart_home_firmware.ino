@@ -4,6 +4,7 @@
 #include <WebServer.h>
 #include <DNSServer.h>
 #include <Preferences.h>
+#include <WiFiUdp.h>
 
 // ============================================================
 // HOMELY SMART HOME - ESP32 FIRMWARE WITH CAPTIVE PORTAL SETUP
@@ -48,6 +49,13 @@ const int NUM_STATUS_LEDS = 7;
 // GPIO 2 is the onboard LED - not used for user feedback (7-LED external board is used instead)
 
 DHT dht(DHTPIN, DHTTYPE);
+
+// ---- UDP Discovery ----
+WiFiUDP udp;
+const unsigned int UDP_PORT = 4210;
+const char* UDP_BROADCAST_ADDR = "255.255.255.255";
+const unsigned long UDP_BROADCAST_INTERVAL_MS = 2000;
+unsigned long lastUdpBroadcast = 0;
 
 // ---- System state ----
 String systemMode = "manual"; // Starts in manual mode by default
@@ -196,6 +204,22 @@ void setRelay(int pin, bool on) {
   Serial.print(on ? "ON" : "OFF");
   Serial.print(" | Written GPIO Output: ");
   Serial.println(pinLevel == HIGH ? "HIGH (3.3V)" : "LOW (0V)");
+}
+
+// ============================================================
+// UDP Discovery Broadcast
+// ============================================================
+void broadcastDiscovery() {
+  unsigned long now = millis();
+  if (now - lastUdpBroadcast < UDP_BROADCAST_INTERVAL_MS) return;
+  lastUdpBroadcast = now;
+
+  String ip = WiFi.localIP().toString();
+  String json = "{\"device\":\"" + String(MDNS_HOSTNAME) + "\",\"ip\":\"" + ip + "\",\"port\":80}";
+
+  udp.beginPacket(UDP_BROADCAST_ADDR, UDP_PORT);
+  udp.print(json);
+  udp.endPacket();
 }
 
 // ============================================================
@@ -523,6 +547,7 @@ void setup() {
     server.on("/mode", HTTP_OPTIONS, handleOptions);
 
     server.begin();
+    udp.begin(UDP_PORT);
     Serial.println("Homely Smart Home API Server ready.");
   } else {
     Serial.println("Failed to connect to saved Wi-Fi. Launching Setup Portal...");
@@ -619,6 +644,7 @@ void loop() {
   handleWifiWatchdog();
   handleMotionAutomation();
   handleSensorsUpdate();
+  broadcastDiscovery();
 
   server.handleClient();
   yield();

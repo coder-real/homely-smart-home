@@ -137,11 +137,11 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
       </View>
 
       {/* Bedroom Ceiling Fan Card (Relay CH4) */}
-      <View style={[mpc.card, bedroom.fanOn && { borderColor: `${colors.primaryLight}66` }]}>
+      <View style={[mpc.card, !bedroom.fanOn && { borderColor: `${colors.primaryLight}66` }]}>
         <View style={mpc.topRow}>
           <View style={mpc.leftInfo}>
             <View style={[mpc.iconBox, { backgroundColor: 'rgba(56,189,248,0.15)', borderColor: 'rgba(56,189,248,0.3)' }]}>
-              <Feather name="wind" size={16} color={bedroom.fanOn ? colors.primaryLight : colors.textMuted} />
+              <Feather name="wind" size={16} color={!bedroom.fanOn ? colors.primaryLight : colors.textMuted} />
             </View>
             <View style={mpc.textColumn}>
               <Text style={mpc.title} numberOfLines={1}>Ceiling Fan</Text>
@@ -157,8 +157,8 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
         <View style={mpc.fanControlBox}>
           <View style={mpc.fanStat}>
             <Text style={mpc.fanStatLabel}>MOTOR STATE</Text>
-            <Text style={[mpc.fanSpeedText, bedroom.fanOn && { color: colors.primaryLight }]}>
-              {bedroom.fanOn ? 'Active (Running)' : 'Stopped (Off)'}
+            <Text style={[mpc.fanSpeedText, !bedroom.fanOn && { color: colors.primaryLight }]}>
+              {!bedroom.fanOn ? 'Active (Running)' : 'Stopped (Off)'}
             </Text>
           </View>
 
@@ -169,7 +169,7 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
         </View>
 
         <PillToggle
-          value={!!bedroom.fanOn}
+          value={!bedroom.fanOn}
           onChange={handleFanToggle}
           accentColor={colors.primaryLight}
         />

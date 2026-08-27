@@ -51,7 +51,7 @@ const ROOM_COLOR: Record<RoomId, string> = {
 function RoomCard({ roomId }: { roomId: RoomId }) {
   const navigation = useNavigation<Nav>();
   const room = useHomeStore((s) => s.rooms[roomId]);
-  const isOn = room.isOn || (roomId === 'bedroom' && !!room.fanOn);
+  const isOn = room.isOn || (roomId === 'bedroom' && !room.fanOn);
   const accentColor = ROOM_COLOR[roomId];
   const iconName = ROOM_ICON[roomId];
 

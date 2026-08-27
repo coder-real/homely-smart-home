@@ -221,7 +221,7 @@ function RoomCard({
   const { toggleRoom: toggleRoomApi } = useRoomToggle();
   const mode = useHomeStore((s) => s.mode);
   const accentColor = ROOM_COLOR[roomId];
-  const isOn = room.isOn || (roomId === 'bedroom' && !!room.fanOn);
+  const isOn = room.isOn || (roomId === 'bedroom' && !room.fanOn);
   const iconName = ROOM_ICON[roomId];
 
   const handleToggle = (newVal: boolean) => {

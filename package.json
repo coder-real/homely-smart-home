@@ -3,20 +3,17 @@
   "version": "1.0.0",
   "main": "index.ts",
   "dependencies": {
-    "@expo-google-fonts/inter": "^0.4.2",
     "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
     "@expo/vector-icons": "^15.1.1",
+    "@isvend/expo-udp": "^0.1.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.18.16",
     "@react-navigation/native": "^7.3.16",
     "@react-navigation/native-stack": "^7.18.8",
-    "@types/three": "^0.185.4",
     "expo": "~57.0.13",
     "expo-asset": "~57.0.11",
-    "expo-dev-client": "~57.0.12",
     "expo-file-system": "~57.0.4",
     "expo-font": "^57.0.1",
-    "expo-gl": "~57.0.2",
     "expo-haptics": "~57.0.1",
     "expo-linear-gradient": "^57.0.1",
     "expo-sharing": "~57.0.13",
@@ -27,12 +24,11 @@
     "react-native-reanimated": "4.5.1",
     "react-native-safe-area-context": "~5.7.0",
     "react-native-screens": "~4.26.0",
-    "react-native-worklets": "0.10.1",
-    "three": "^0.166.1",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
     "@types/react": "~19.2.2",
+    "expo-dev-client": "~57.0.12",
     "typescript": "~6.0.3"
   },
   "scripts": {

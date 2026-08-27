@@ -1,14 +1,22 @@
 import { useHomeStore } from '../store/useHomeStore';
+import {
+  discoverByUdp,
+  startDiscoveryListener,
+  stopDiscoveryListener,
+} from './udpDiscovery';
 
 const MDNS_HOST = 'homely-smarthome.local';
 const POLL_INTERVAL = 1500;
-const REQUEST_TIMEOUT = 2000;
-const COMMAND_LOCK_MS = 2500;
+const REQUEST_TIMEOUT = 3000;
+const COMMAND_LOCK_MS = 2000;
+const MAX_RETRIES = 2;
+const RETRY_DELAY_MS = 300;
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let activeBaseUrl: string | null = null;
 let isPollInProgress = false;
 let lastCommandTime = 0;
+let lastCommandKey: string | null = null;
 
 function getTargetUrl(): string {
   if (activeBaseUrl) return activeBaseUrl;
@@ -32,6 +40,38 @@ async function fetchWithTimeout<T>(url: string, timeoutMs = REQUEST_TIMEOUT): Pr
   } catch {
     return null;
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function postWithRetry(
+  path: string,
+  body: object,
+  retries = MAX_RETRIES
+): Promise<boolean> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+      const res = await fetch(`${getTargetUrl()}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (res.ok) {
+        lastCommandTime = Date.now();
+        return true;
+      }
+    } catch {
+      // failed — retry
+    }
+    if (attempt < retries) await sleep(RETRY_DELAY_MS * (attempt + 1));
+  }
+  return false;
 }
 
 export interface FullStatusResponse {
@@ -68,54 +108,21 @@ export async function setRelay(
   channel: 'porch' | 'living' | 'bedroom_light' | 'bedroom_fan',
   on: boolean
 ): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-    const res = await fetch(`${getTargetUrl()}/relay/${channel}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ on }),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (res.ok) lastCommandTime = Date.now();
-    return res.ok;
-  } catch {
-    return false;
-  }
+  const key = `relay:${channel}:${on}`;
+  if (key === lastCommandKey) return false;
+  lastCommandKey = key;
+  return postWithRetry(`/relay/${channel}`, { on });
 }
 
 export async function setMode(mode: 'auto' | 'manual'): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-    const res = await fetch(`${getTargetUrl()}/mode`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode }),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    if (res.ok) lastCommandTime = Date.now();
-    return res.ok;
-  } catch {
-    return false;
-  }
+  const key = `mode:${mode}`;
+  if (key === lastCommandKey) return false;
+  lastCommandKey = key;
+  return postWithRetry('/mode', { mode });
 }
 
 export async function resetEsp32Wifi(): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-    const res = await fetch(`${getTargetUrl()}/reset-wifi`, {
-      method: 'POST',
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-    return res.ok;
-  } catch {
-    return false;
-  }
+  return postWithRetry('/reset-wifi', {});
 }
 
 export async function discoverDevice(): Promise<boolean> {
@@ -125,6 +132,16 @@ export async function discoverDevice(): Promise<boolean> {
     const ipUrl = `http://${manualIp}`;
     if (await pingUrl(ipUrl)) {
       activeBaseUrl = ipUrl;
+      return true;
+    }
+  }
+
+  const udpIp = await discoverByUdp(4000);
+  if (udpIp) {
+    const udpUrl = `http://${udpIp}`;
+    if (await pingUrl(udpUrl)) {
+      activeBaseUrl = udpUrl;
+      useHomeStore.getState().setEsp32Ip(udpIp);
       return true;
     }
   }
@@ -175,7 +192,6 @@ export async function startPolling() {
         store.setSensors(data.temperature, data.humidity);
       }
 
-      // Skip sync if user just sent a command (prevents flicker)
       const isLocked = (Date.now() - lastCommandTime) < COMMAND_LOCK_MS;
       if (isLocked) return;
 
@@ -205,7 +221,13 @@ export function stopPolling() {
 
 export async function reconnect(): Promise<boolean> {
   stopPolling();
+  stopDiscoveryListener();
   const found = await discoverDevice();
   startPolling();
+  startDiscoveryListener((ip) => {
+    const url = `http://${ip}`;
+    activeBaseUrl = url;
+    useHomeStore.getState().setEsp32Ip(ip);
+  });
   return found;
 }
