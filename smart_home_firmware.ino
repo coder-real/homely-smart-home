@@ -52,10 +52,10 @@ DHT dht(DHTPIN, DHTTYPE);
 // ---- System state ----
 String systemMode = "manual"; // Starts in manual mode by default
 
-bool porchOn        = false;
-bool livingOn       = false;
-bool bedroomLightOn = false;
-bool bedroomFanOn   = false;
+bool porchOn        = true;
+bool livingOn       = true;
+bool bedroomLightOn = true;
+bool bedroomFanOn   = true;
 
 float lastTemp      = 26.0;
 float lastHumidity  = 55.0;
@@ -67,9 +67,9 @@ const int PIR_CONFIRM_COUNT = 2;
 int pirHighStreak = 0;
 bool motionActive = false;
 
-// ---- Fan / temperature automation ----
-float targetFanOnTemp = 28.0;     // Default: synced from the app's Target Temp setting
-const float FAN_OFF_HYSTERESIS = 2.0; // Fan turns off when temp drops 2°C below target
+// ---- Fan automation / temperature state ----
+// Fan is 100% manual direct control from the app.
+// Temperature & humidity sensors report live telemetry.
 
 // ============================================================
 // 7-LED Status Dashboard & Animation System (Active-LOW: LOW=ON, HIGH=OFF)
@@ -141,11 +141,10 @@ void updateStatusLeds() {
     static int scannerIdx = 0;
     static int scannerDir = 1;
 
-    if (now - lastScannerStep >= 90) {
+    if (now - lastScannerStep >= 75) {
       lastScannerStep = now;
-      for (int i = 0; i < NUM_STATUS_LEDS; i++) {
-        setLed(STATUS_LEDS[i], i == scannerIdx);
-      }
+      setAllLeds(false);
+      setLed(STATUS_LEDS[scannerIdx], true);
       scannerIdx += scannerDir;
       if (scannerIdx >= NUM_STATUS_LEDS - 1) {
         scannerIdx = NUM_STATUS_LEDS - 1;
@@ -156,17 +155,15 @@ void updateStatusLeds() {
       }
     }
   } else if (!isWifiConnected) {
-    // CONNECTING / RECONNECTING TO WI-FI:
-    // Full 7-LED forward chasing wave animation (1 -> 2 -> ... -> 7 -> 1)
-    static unsigned long lastChaseStep = 0;
-    static int chaseIdx = 0;
+    // CONNECTING TO WI-FI: Smooth unidirectional chasing wave across 7 LEDs
+    static unsigned long lastWaveStep = 0;
+    static int waveIdx = 0;
 
-    if (now - lastChaseStep >= 80) {
-      lastChaseStep = now;
-      chaseIdx = (chaseIdx + 1) % NUM_STATUS_LEDS;
-      for (int i = 0; i < NUM_STATUS_LEDS; i++) {
-        setLed(STATUS_LEDS[i], i == chaseIdx);
-      }
+    if (now - lastWaveStep >= 65) {
+      lastWaveStep = now;
+      setAllLeds(false);
+      setLed(STATUS_LEDS[waveIdx], true);
+      waveIdx = (waveIdx + 1) % NUM_STATUS_LEDS;
     }
   } else {
     // ONLINE & RUNNING (Real-Time Live House Dashboard):
@@ -184,13 +181,21 @@ void updateStatusLeds() {
 // Relay helpers
 // ============================================================
 void setRelay(int pin, bool on) {
+  int pinLevel;
   if (pin == RELAY_BEDROOM_FAN) {
     // Fan relay is inverted (LOW = ON / spinning, HIGH = OFF / stopped)
-    digitalWrite(pin, on ? LOW : HIGH);
+    pinLevel = on ? LOW : HIGH;
   } else {
     // Light relays (HIGH = ON / lit, LOW = OFF / dark)
-    digitalWrite(pin, on ? HIGH : LOW);
+    pinLevel = on ? HIGH : LOW;
   }
+  digitalWrite(pin, pinLevel);
+  Serial.print("[RELAY] Pin ");
+  Serial.print(pin);
+  Serial.print(" -> Logical State: ");
+  Serial.print(on ? "ON" : "OFF");
+  Serial.print(" | Written GPIO Output: ");
+  Serial.println(pinLevel == HIGH ? "HIGH (3.3V)" : "LOW (0V)");
 }
 
 // ============================================================
@@ -247,18 +252,27 @@ bool bodyWantsOn() {
 }
 
 void handleRelayPorch() {
+  String body = server.arg("plain");
+  Serial.print("[HTTP] POST /relay/porch: ");
+  Serial.println(body);
   porchOn = bodyWantsOn();
   setRelay(RELAY_PORCH, porchOn);
   sendJson(200, "{\"ok\":true,\"porch\":" + String(porchOn ? "true" : "false") + "}");
 }
 
 void handleRelayBedroomLight() {
+  String body = server.arg("plain");
+  Serial.print("[HTTP] POST /relay/bedroom_light: ");
+  Serial.println(body);
   bedroomLightOn = bodyWantsOn();
   setRelay(RELAY_BEDROOM_LIGHT, bedroomLightOn);
   sendJson(200, "{\"ok\":true,\"bedroom_light\":" + String(bedroomLightOn ? "true" : "false") + "}");
 }
 
 void handleRelayLiving() {
+  String body = server.arg("plain");
+  Serial.print("[HTTP] POST /relay/living: ");
+  Serial.println(body);
   livingOn = bodyWantsOn();
   setRelay(RELAY_LIVING, livingOn);
   if (livingOn) lastMotionTime = millis();
@@ -266,8 +280,9 @@ void handleRelayLiving() {
 }
 
 void handleRelayBedroomFan() {
-  // Always allow manual override from the app.
-  // In Auto mode, the temperature automation will resume control on next DHT read cycle.
+  String body = server.arg("plain");
+  Serial.print("[HTTP] POST /relay/bedroom_fan: ");
+  Serial.println(body);
   bedroomFanOn = bodyWantsOn();
   setRelay(RELAY_BEDROOM_FAN, bedroomFanOn);
   sendJson(200, "{\"ok\":true,\"bedroom_fan\":" + String(bedroomFanOn ? "true" : "false") + "}");
@@ -277,47 +292,12 @@ void handleMode() {
   String body = server.arg("plain");
   if (body.indexOf("auto") != -1) {
     systemMode = "auto";
-    // Immediately evaluate fan state when entering Auto mode:
-    // Only ON if current temperature is at or above target temp
-    if (lastTemp >= targetFanOnTemp) {
-      bedroomFanOn = true;
-      setRelay(RELAY_BEDROOM_FAN, true);
-    } else {
-      bedroomFanOn = false;
-      setRelay(RELAY_BEDROOM_FAN, false);
-    }
   } else if (body.indexOf("manual") != -1) {
     systemMode = "manual";
   }
   Serial.print("System Mode updated via App to: ");
   Serial.println(systemMode);
   sendJson(200, "{\"ok\":true,\"mode\":\"" + systemMode + "\"}");
-}
-
-void handleTargetTemp() {
-  String body = server.arg("plain");
-  int idx = body.indexOf("\"temp\":");
-  if (idx != -1) {
-    float parsed = body.substring(idx + 7).toFloat();
-    if (parsed > 10.0 && parsed < 50.0) {
-      targetFanOnTemp = parsed;
-      Serial.print("Target fan temp updated to: ");
-      Serial.println(targetFanOnTemp);
-
-      // In Auto mode, immediately adjust fan based on updated target
-      if (systemMode == "auto") {
-        const float fanOffTemp = targetFanOnTemp - FAN_OFF_HYSTERESIS;
-        if (lastTemp >= targetFanOnTemp && !bedroomFanOn) {
-          bedroomFanOn = true;
-          setRelay(RELAY_BEDROOM_FAN, true);
-        } else if (lastTemp <= fanOffTemp && bedroomFanOn) {
-          bedroomFanOn = false;
-          setRelay(RELAY_BEDROOM_FAN, false);
-        }
-      }
-    }
-  }
-  sendJson(200, "{\"ok\":true,\"target_temp\":" + String(targetFanOnTemp, 1) + "}");
 }
 
 void handleResetWifi() {
@@ -468,10 +448,11 @@ void setup() {
     pinMode(STATUS_LEDS[i], OUTPUT);
   }
 
-  setRelay(RELAY_PORCH, false);
-  setRelay(RELAY_LIVING, false);
-  setRelay(RELAY_BEDROOM_LIGHT, false);
-  setRelay(RELAY_BEDROOM_FAN, false);
+  // Power-on default: all lights and fan turn ON on power-up
+  setRelay(RELAY_PORCH, true);
+  setRelay(RELAY_LIVING, true);
+  setRelay(RELAY_BEDROOM_LIGHT, true);
+  setRelay(RELAY_BEDROOM_FAN, true);
 
   // Initialize all LEDs to OFF (HIGH for Common Anode)
   setAllLeds(false);
@@ -529,7 +510,6 @@ void setup() {
     server.on("/relay/bedroom_light", HTTP_POST, handleRelayBedroomLight);
     server.on("/relay/bedroom_fan", HTTP_POST, handleRelayBedroomFan);
     server.on("/mode", HTTP_POST, handleMode);
-    server.on("/target-temp", HTTP_POST, handleTargetTemp);
     server.on("/reset-wifi", HTTP_POST, handleResetWifi);
 
     // OPTIONS preflight
@@ -541,7 +521,6 @@ void setup() {
     server.on("/relay/bedroom_light", HTTP_OPTIONS, handleOptions);
     server.on("/relay/bedroom_fan", HTTP_OPTIONS, handleOptions);
     server.on("/mode", HTTP_OPTIONS, handleOptions);
-    server.on("/target-temp", HTTP_OPTIONS, handleOptions);
 
     server.begin();
     Serial.println("Homely Smart Home API Server ready.");
@@ -593,7 +572,7 @@ void handleMotionAutomation() {
   }
 }
 
-void handleFanAutomation() {
+void handleSensorsUpdate() {
   static unsigned long lastDhtRead = 0;
   if (millis() - lastDhtRead < 2000) return;
   lastDhtRead = millis();
@@ -604,21 +583,6 @@ void handleFanAutomation() {
   if (!isnan(h) && !isnan(t) && h >= 0 && h <= 100 && t > -20 && t < 70) {
     lastTemp = t;
     lastHumidity = h;
-
-    if (systemMode == "auto") {
-      const float fanOffTemp = targetFanOnTemp - FAN_OFF_HYSTERESIS;
-      if (!bedroomFanOn && t >= targetFanOnTemp) {
-        bedroomFanOn = true;
-        setRelay(RELAY_BEDROOM_FAN, true);
-        Serial.print("Fan AUTO ON at ");
-        Serial.print(t); Serial.println("°C");
-      } else if (bedroomFanOn && t <= fanOffTemp) {
-        bedroomFanOn = false;
-        setRelay(RELAY_BEDROOM_FAN, false);
-        Serial.print("Fan AUTO OFF at ");
-        Serial.print(t); Serial.println("°C");
-      }
-    }
   }
 }
 
@@ -654,7 +618,7 @@ void loop() {
 
   handleWifiWatchdog();
   handleMotionAutomation();
-  handleFanAutomation();
+  handleSensorsUpdate();
 
   server.handleClient();
   yield();

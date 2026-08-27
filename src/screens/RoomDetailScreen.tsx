@@ -99,11 +99,7 @@ const pt = StyleSheet.create({
 
 function BedroomControls({ accentColor }: { accentColor: string }) {
   const bedroom = useHomeStore((s) => s.rooms.bedroom);
-  const { toggleRoom: toggleRoomApi, toggleBedroomFan, updateTargetTemp } = useRoomToggle();
-  const setRoomMode = useHomeStore((s) => s.setRoomMode);
-
-  const target = bedroom.targetTemp ?? 24.0;
-  const isAuto = bedroom.mode === 'auto';
+  const { toggleRoom: toggleRoomApi, toggleBedroomFan } = useRoomToggle();
 
   const handleLightToggle = (v: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -113,11 +109,6 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
   const handleFanToggle = (v: boolean) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     toggleBedroomFan(v);
-  };
-
-  const adjustTarget = (delta: number) => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    updateTargetTemp(Math.round((target + delta) * 10) / 10);
   };
 
   return (
@@ -131,7 +122,7 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
             </View>
             <View style={mpc.textColumn}>
               <Text style={mpc.title} numberOfLines={1}>Bedroom Light</Text>
-              <Text style={mpc.subtitle} numberOfLines={2}>Always manual</Text>
+              <Text style={mpc.subtitle} numberOfLines={2}>Manual lighting</Text>
             </View>
           </View>
           <View style={mpc.badge}>
@@ -154,42 +145,27 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
             </View>
             <View style={mpc.textColumn}>
               <Text style={mpc.title} numberOfLines={1}>Ceiling Fan</Text>
-              <Text style={mpc.subtitle} numberOfLines={2}>Temperature-controlled automatically</Text>
+              <Text style={mpc.subtitle} numberOfLines={2}>Direct motor control</Text>
             </View>
           </View>
-          <TouchableOpacity
-            style={[mpc.modePill, isAuto ? mpc.modePillAuto : mpc.modePillManual]}
-            onPress={() => setRoomMode('bedroom', isAuto ? 'manual' : 'auto')}
-            activeOpacity={0.8}
-          >
-            <Feather name={isAuto ? 'zap' : 'sliders'} size={11} color={isAuto ? colors.primaryLight : colors.amber} />
-            <Text style={[mpc.modeText, { color: isAuto ? colors.primaryLight : colors.amber }]}>
-              {isAuto ? 'AUTO' : 'MANUAL'}
-            </Text>
-          </TouchableOpacity>
+          <View style={mpc.badge}>
+            <Text style={mpc.badgeText}>MANUAL</Text>
+          </View>
         </View>
 
-        {/* Fan Status & Target Temp Box */}
+        {/* Fan Status Box */}
         <View style={mpc.fanControlBox}>
           <View style={mpc.fanStat}>
-            <Text style={mpc.fanStatLabel}>TARGET TEMP</Text>
-            <View style={mpc.targetStepper}>
-              <TouchableOpacity onPress={() => adjustTarget(-0.5)} style={mpc.stepBtn}>
-                <Text style={mpc.stepBtnText}>-</Text>
-              </TouchableOpacity>
-              <Text style={mpc.targetValue}>{target.toFixed(1)}°C</Text>
-              <TouchableOpacity onPress={() => adjustTarget(0.5)} style={mpc.stepBtn}>
-                <Text style={mpc.stepBtnText}>+</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={mpc.fanStat}>
-            <Text style={mpc.fanStatLabel}>CURRENT STATUS</Text>
+            <Text style={mpc.fanStatLabel}>MOTOR STATE</Text>
             <Text style={[mpc.fanSpeedText, bedroom.fanOn && { color: colors.primaryLight }]}>
-              {bedroom.fanOn ? 'Active' : 'Off'}
+              {bedroom.fanOn ? 'Active (Running)' : 'Stopped (Off)'}
             </Text>
           </View>
+
+          {/* <View style={mpc.fanStat}>
+            <Text style={mpc.fanStatLabel}>CHANNEL</Text>
+            <Text style={mpc.fanSpeedText}>Relay CH4 (GPIO 25)</Text>
+          </View> */}
         </View>
 
         <PillToggle
@@ -395,29 +371,6 @@ const mpc = StyleSheet.create({
     fontFamily: fontFamily.bold,
     fontSize: 9,
     letterSpacing: 0.8,
-  },
-  targetStepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepBtn: {
-    width: 24,
-    height: 24,
-    borderRadius: radius.sm,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepBtnText: {
-    color: colors.text,
-    fontFamily: fontFamily.bold,
-    fontSize: 14,
-  },
-  targetValue: {
-    color: colors.text,
-    fontFamily: fontFamily.bold,
-    fontSize: fontSize.base,
   },
   fanSpeedText: {
     color: colors.textSecondary,

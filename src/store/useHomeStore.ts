@@ -14,7 +14,6 @@ export interface RoomState {
   isOn: boolean;
   fanOn?: boolean;
   fanSpeed?: 'Off' | 'Low' | 'Medium' | 'High';
-  targetTemp?: number;
   mode: RoomMode;
   temperature?: number;
   humidity?: number;
@@ -58,7 +57,6 @@ interface HomeState {
   setBedroomLight: (on: boolean) => void;
   setBedroomFan: (fanOn: boolean, fanSpeed?: 'Off' | 'Low' | 'Medium' | 'High') => void;
   setBedroomFanSilent: (fanOn: boolean) => void;
-  setTargetTemp: (temp: number) => void;
   setRoomMode: (roomId: RoomId, mode: RoomMode) => void;
   setSensors: (temp: number, humidity: number) => void;
   setMotionDetected: (detected: boolean) => void;
@@ -80,7 +78,7 @@ export const useHomeStore = create<HomeState>()(
           name: 'Living Room',
           subtitle: 'Motion-activated lighting',
           icon: 'tv',
-          isOn: false,
+          isOn: true,
           mode: 'auto',
           relayChannel: 'CH2',
           ledCount: 3,
@@ -88,13 +86,12 @@ export const useHomeStore = create<HomeState>()(
         bedroom: {
           id: 'bedroom',
           name: 'Bedroom',
-          subtitle: 'Climate controlled',
+          subtitle: 'Lighting & ceiling fan',
           icon: 'moon',
-          isOn: false,
-          fanOn: false,
-          fanSpeed: 'Off',
-          targetTemp: 28.0,
-          mode: 'auto',
+          isOn: true,
+          fanOn: true,
+          fanSpeed: 'Low',
+          mode: 'manual',
           temperature: 0,
           humidity: 0,
           relayChannel: 'CH3 / CH4',
@@ -105,16 +102,16 @@ export const useHomeStore = create<HomeState>()(
           name: 'Porch',
           subtitle: 'Manual control',
           icon: 'sun',
-          isOn: false,
+          isOn: true,
           mode: 'manual',
           relayChannel: 'CH1',
           ledCount: 1,
         },
       },
 
-      temperature: 0,
-      humidity: 0,
-      lastUpdated: 0,
+      temperature: 24.5,
+      humidity: 58.0,
+      lastUpdated: Date.now(),
       motionDetected: false,
       lastMotion: null,
       esp32Ip: '',
@@ -122,15 +119,20 @@ export const useHomeStore = create<HomeState>()(
       activityLog: [],
 
       setMode: (mode) => {
+        const prevMode = get().mode;
+        if (prevMode === mode) return;
         set({ mode });
         get().addLogEntry(
-          mode === 'auto' ? 'System switched to Auto' : 'System switched to Manual',
-          mode === 'auto' ? 'Sensors handle lighting & fan' : 'Direct app override',
-          mode === 'auto' ? '#3B82F6' : '#F59E0B'
+          `System switched to ${mode === 'auto' ? 'Auto' : 'Manual'}`,
+          mode === 'auto' ? 'Sensors handle lighting' : 'Direct app override',
+          mode === 'auto' ? '#38BDF8' : '#F59E0B'
         );
       },
 
-      setModeSilent: (mode) => set({ mode }),
+      setModeSilent: (mode) => {
+        if (get().mode === mode) return;
+        set({ mode });
+      },
 
       setDefaultMode: (defaultMode) => set({ defaultMode }),
 
@@ -147,7 +149,7 @@ export const useHomeStore = create<HomeState>()(
         get().addLogEntry(
           `${room.name} light ${newIsOn ? 'ON' : 'OFF'}`,
           'Manual override',
-          newIsOn ? '#10B981' : 'rgba(255,255,255,0.4)',
+          newIsOn ? '#F59E0B' : 'rgba(255,255,255,0.4)',
           roomId
         );
       },
@@ -209,18 +211,6 @@ export const useHomeStore = create<HomeState>()(
         });
       },
 
-      setTargetTemp: (targetTemp) => {
-        const state = get();
-        const bedroom = state.rooms.bedroom;
-        set({
-          rooms: {
-            ...state.rooms,
-            bedroom: { ...bedroom, targetTemp },
-          },
-        });
-        // Note: API sync is handled by useRoomToggle to avoid circular dependency
-      },
-
       setRoomMode: (roomId, mode) => {
         const state = get();
         const room = state.rooms[roomId];
@@ -280,7 +270,6 @@ export const useHomeStore = create<HomeState>()(
         activityLog: state.activityLog,
         esp32Ip: state.esp32Ip,
         defaultMode: state.defaultMode,
-        savedTargetTemp: state.rooms.bedroom.targetTemp,
       }),
       merge: (persistedState: any, currentState: HomeState) => {
         if (!persistedState) return currentState;
@@ -289,13 +278,6 @@ export const useHomeStore = create<HomeState>()(
           activityLog: Array.isArray(persistedState.activityLog) ? persistedState.activityLog : currentState.activityLog,
           esp32Ip: typeof persistedState.esp32Ip === 'string' ? persistedState.esp32Ip : currentState.esp32Ip,
           defaultMode: persistedState.defaultMode ?? currentState.defaultMode,
-          rooms: {
-            ...currentState.rooms,
-            bedroom: {
-              ...currentState.rooms.bedroom,
-              targetTemp: persistedState.savedTargetTemp ?? currentState.rooms.bedroom.targetTemp ?? 28.0,
-            },
-          },
         };
       },
     }

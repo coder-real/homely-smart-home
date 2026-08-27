@@ -2,8 +2,8 @@ import { useHomeStore } from '../store/useHomeStore';
 
 const MDNS_HOST = 'homely-smarthome.local';
 const POLL_INTERVAL = 1500;
-const REQUEST_TIMEOUT = 3000;
-const COMMAND_LOCK_MS = 3000;
+const REQUEST_TIMEOUT = 2000;
+const COMMAND_LOCK_MS = 2500;
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let activeBaseUrl: string | null = null;
@@ -47,7 +47,7 @@ export interface FullStatusResponse {
 export async function pingUrl(baseUrl: string): Promise<boolean> {
   try {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 2000);
+    const timer = setTimeout(() => controller.abort(), 1500);
     const res = await fetch(`${baseUrl}/ping`, { signal: controller.signal });
     clearTimeout(timer);
     return res.ok;
@@ -97,23 +97,6 @@ export async function setMode(mode: 'auto' | 'manual'): Promise<boolean> {
     });
     clearTimeout(timer);
     if (res.ok) lastCommandTime = Date.now();
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
-export async function setTargetTemp(temp: number): Promise<boolean> {
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
-    const res = await fetch(`${getTargetUrl()}/target-temp`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ temp }),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
     return res.ok;
   } catch {
     return false;

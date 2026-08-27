@@ -2,12 +2,19 @@
   "expo": {
     "name": "Homely",
     "slug": "homely-smart-home",
+    "owner": "coder-real",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
     "backgroundColor": "#080C14",
     "android": {
+      "usesCleartextTraffic": true,
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.ACCESS_WIFI_STATE"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-foreground.png",
         "backgroundColor": "#080C14"
@@ -19,6 +26,11 @@
       "expo-status-bar",
       "expo-asset",
       "expo-sharing"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "44b81edc-571b-4bf3-b4fb-b673775fbabb"
+      }
+    }
   }
 }

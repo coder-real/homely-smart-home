@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useHomeStore, RoomId } from '../store/useHomeStore';
-import { setRelay, setMode as apiSetMode, setTargetTemp as apiSetTargetTemp } from '../api/esp32';
+import { setRelay, setMode as apiSetMode } from '../api/esp32';
 
 export function useRoomToggle() {
   const store = useHomeStore();
@@ -62,10 +62,5 @@ export function useRoomToggle() {
     }
   }, []);
 
-  const updateTargetTemp = useCallback(async (temp: number) => {
-    store.setTargetTemp(temp);
-    await apiSetTargetTemp(temp);
-  }, []);
-
-  return { toggleRoom, toggleBedroomFan, switchMode, updateTargetTemp };
+  return { toggleRoom, toggleBedroomFan, switchMode };
 }
