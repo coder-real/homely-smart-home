@@ -9,7 +9,6 @@
     "userInterfaceStyle": "dark",
     "backgroundColor": "#080C14",
     "android": {
-      "usesCleartextTraffic": true,
       "permissions": [
         "android.permission.INTERNET",
         "android.permission.ACCESS_NETWORK_STATE",
@@ -26,6 +25,14 @@
       "expo-status-bar",
       "expo-asset",
       "expo-sharing",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
       [
         "@isvend/expo-udp",
         {

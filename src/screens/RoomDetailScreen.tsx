@@ -169,7 +169,7 @@ function BedroomControls({ accentColor }: { accentColor: string }) {
         </View>
 
         <PillToggle
-          value={bedroom.fanOn}
+          value={!bedroom.fanOn}
           onChange={handleFanToggle}
           accentColor={colors.primaryLight}
         />
